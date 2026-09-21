@@ -16,7 +16,7 @@ bashio::log.info "Setting up Root CA authority"
 
 URL=$(bashio::config 'ca_url')
 FINGERPRINT=$(bashio::config 'root_ca_fingerprint')
-CAFILE="/ssl/$(bashio::config 'cafile')"
+CAFILE="$(ssl_file_path 'cafile')"
 
 if [[ ${STEPDEBUG} -eq 1 ]];then set -x; fi;
 step ca bootstrap \

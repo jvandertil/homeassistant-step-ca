@@ -10,17 +10,15 @@ sleep 2 # give time to logging to flush and not be mixed
 
 source /usr/bin/helpers.sh
 set_debug
+validate_ssl_file_names
 
 bashio::log.info "Starting step-ca-client"
 /usr/bin/root-ca.sh
 
-CERTFILE="/ssl/$(bashio::config 'certfile')"
-if ! $(
-    if [[ ${STEPDEBUG} -eq 1 ]];then set -x; fi;
-    step certificate verify \
-        "${CERTFILE}" \
-        -roots=/root/.step/certs/root_ca.crt
-)
+CERTFILE="$(ssl_file_path 'certfile')"
+if ! step certificate verify \
+    "${CERTFILE}" \
+    -roots=/root/.step/certs/root_ca.crt
 then
     /usr/bin/create-with-token.sh
 fi

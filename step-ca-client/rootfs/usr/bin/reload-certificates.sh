@@ -12,7 +12,10 @@
 # ==============================================================================
 set -e
 
-CERTFILE="/ssl/$(bashio::config 'certfile')"
+# shellcheck source=/dev/null
+source /usr/bin/helpers.sh
+
+CERTFILE="$(ssl_file_path 'certfile')"
 
 
 # ------------------------------------------------------------------------------

@@ -12,8 +12,8 @@ set -e
 source /usr/bin/helpers.sh
 set_debug
 
-CERTFILE="/ssl/$(bashio::config 'certfile')"
-KEYFILE="/ssl/$(bashio::config 'keyfile')"
+CERTFILE="$(ssl_file_path 'certfile')"
+KEYFILE="$(ssl_file_path 'keyfile')"
 #running following in subshell hides the command output until complete
 if [[ ${STEPDEBUG} -eq 1 ]];then set -x; fi;
 step ca renew \

@@ -17,15 +17,14 @@ bashio::log.warning "Previous certificate not valid for renewal, forcing creatio
 KEYTYPE="$(bashio::config 'key_type')"
 TOKEN="$(bashio::config 'token')"
 MAINSUBJECT="$(bashio::config 'subjects' | head -1)"
-CERTFILE="/ssl/$(bashio::config 'certfile')"
-KEYFILE="/ssl/$(bashio::config 'keyfile')"
+CERTFILE="$(ssl_file_path 'certfile')"
+KEYFILE="$(ssl_file_path 'keyfile')"
 
-if [[ ${STEPDEBUG} -eq 1 ]];then set -x; fi;
+# Do not enable shell tracing here: it would disclose the one-time token in
+# Home Assistant's add-on logs.
 step ca certificate \
     -f \
     --kty="${KEYTYPE}" \
     --token="${TOKEN}" \
     "${MAINSUBJECT}" "${CERTFILE}" "${KEYFILE}"
-set +x
-
 /usr/bin/reload-certificates.sh

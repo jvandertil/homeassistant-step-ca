@@ -37,6 +37,7 @@ subjects:
 keyfile: privkey.pem
 certfile: fullchain.pem
 key_type: RSA
+renewal_method: renew
 log_level: info
 ```
 
@@ -95,6 +96,20 @@ Path to where the private key file will be created relative to `/ssl/`.
 ### Option: `certfile`
 
 Path to where the certificate file will be created relative to `/ssl/`.
+
+### Option: `renewal_method`
+
+Controls how the certificate is updated automatically:
+
+- `renew` (default) renews the certificate while retaining the existing private
+  key.
+- `rekey` generates a new private key and certificate on every scheduled
+  update.
+
+Restart the add-on after changing this option. The setting is read when the
+renewal daemon starts, so changing the add-on configuration does not alter an
+already running daemon. Rekeying may require certificate-consuming services to
+accept the newly generated key; use `renew` unless key rotation is required.
 
 ### Option: `restart_ha`
 

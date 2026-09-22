@@ -29,6 +29,10 @@ configuration:
     name: Certificate filename
     description: >-
       Path to where the certificate file will be created, relative to /ssl/.
+  renewal_method:
+    name: Certificate renewal method
+    description: >-
+      Choose renew to retain the existing private key, or rekey to generate a new private key with each certificate update. Restart the add-on after changing this option.
   restart_ha:
     name: Restart Home Assistant core on certificate renewal
   restart_addons:

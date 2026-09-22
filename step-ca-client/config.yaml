@@ -22,6 +22,7 @@ options:
   cafile: ca.pem
   keyfile: privkey.pem
   certfile: fullchain.pem
+  renewal_method: renew
   restart_ha: true
   restart_addons:
     - core_mosquitto
@@ -36,6 +37,7 @@ schema:
   cafile: str
   keyfile: str
   certfile: str
+  renewal_method: list(renew|rekey)
   restart_ha: bool
   restart_addons:
     - str

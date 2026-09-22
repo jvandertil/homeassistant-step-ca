@@ -1,5 +1,7 @@
 # MIT License
 
+Copyright (c) 2026 jvandertil
+
 Copyright (c) 2023 Miguel Angel Nubla <miguelangel.nubla@gmail.com>
 
 Copyright (c) 2017-2023 Franck Nijhof <frenck@addons.community>

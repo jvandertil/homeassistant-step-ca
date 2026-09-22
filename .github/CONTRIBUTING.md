@@ -1,8 +1,7 @@
 # Contributing
 
-When contributing to this repository, please first discuss the change you wish
-to make via issue, email, or any other method with the owners of this repository
-before making a change.
+Contributions are welcome. For substantial changes, please open an issue first
+so the proposed approach can be discussed.
 
 ## Issues and feature requests
 
@@ -18,9 +17,7 @@ Even better: You could submit a pull request with a fix / new feature!
 1. Search our repository for open or closed [pull requests][prs] that relates
    to your submission. You don't want to duplicate effort.
 
-1. You may merge the pull request in once you have the sign-off of two other
-   developers, or if you do not have permission to do that, you may request
-   the second reviewer to merge it for you.
+1. A maintainer will review and merge accepted pull requests.
 
-[github]: https://github.com/miguelangel-nubla/hassio-step-ca-client/issues
-[prs]: https://github.com/miguelangel-nubla/hassio-step-ca-client/pulls
+[github]: https://github.com/jvandertil/homeassistant-step-ca/issues
+[prs]: https://github.com/jvandertil/homeassistant-step-ca/pulls

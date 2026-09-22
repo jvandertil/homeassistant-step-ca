@@ -37,15 +37,11 @@ compared to installing any other Home Assistant add-on.
 
 2. Click on add to complete adding the repository.
 
-3. Click the Home Assistant My button below to open the add-on on your Home
-   Assistant instance.
-
-   [![Open this add-on in your Home Assistant instance.][addon-add-badge]][addon-add]
-
-4. Click the "Install" button to install the add-on.
-5. Configure the add-on in the configuration tab.
-6. Start the "step-ca-client" add-on.
-7. Check the logs of the "step-ca-client" add-on to see it in action.
+3. Select **step-ca-client** from the newly added repository and click the
+   "Install" button.
+4. Configure the add-on in the configuration tab.
+5. Start the "step-ca-client" add-on.
+6. Check the logs of the "step-ca-client" add-on to see it in action.
 
 ## Contributing
 
@@ -59,58 +55,33 @@ Thank you for being involved! :heart_eyes:
 
 ## Authors & contributors
 
-Addon created by [Miguel Angel Nubla][miguelangel-nubla] based on the
-[addon-example][addon-example] repository by [Franck Nijhof][frenck].
+Maintained by [jvandertil][maintainer]. The original add-on was created by
+Miguel Angel Nubla and based on Home Assistant's add-on example.
 
 For a full list of all authors and contributors,
 check [the contributor's page][contributors].
 
 ## License
 
-MIT License
-
-Copyright (c) 2023 Miguel Angel Nubla <miguelangel.nubla@gmail.com>
-
-Copyright (c) 2017-2023 Franck Nijhof <frenck@addons.community>
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+See [LICENSE.md](LICENSE.md).
 
 [aarch64-shield]: https://img.shields.io/badge/aarch64-yes-green.svg
-[addon-add]: https://my.home-assistant.io/redirect/supervisor_addon/?addon=133adb15_step-ca-client&repository_url=https%3A%2F%2Fgithub.com%2Fmiguelangel-nubla%2Fhassio-repository
-[addon-add-badge]: https://my.home-assistant.io/badges/supervisor_addon.svg
-[addon-add-repo]: https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fmiguelangel-nubla%2Fhassio-repository
+[addon-add-repo]: https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fjvandertil%2Fhomeassistant-step-ca
 [addon-add-repo-badge]: https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg
 [addon-example]: https://github.com/hassio-addons/addon-example
 [amd64-shield]: https://img.shields.io/badge/amd64-yes-green.svg
-[commits-shield]: https://img.shields.io/github/commit-activity/y/miguelangel-nubla/hassio-step-ca-client.svg
-[commits]: https://github.com/miguelangel-nubla/hassio-step-ca-client/commits/main
-[contributors]: https://github.com/miguelangel-nubla/hassio-step-ca-client/graphs/contributors
-[docs]: https://github.com/miguelangel-nubla/hassio-step-ca-client/blob/main/step-ca-client/DOCS.md
-[frenck]: https://github.com/frenck
-[github-actions-shield]: https://github.com/miguelangel-nubla/hassio-step-ca-client/workflows/CI/badge.svg
-[github-actions]: https://github.com/miguelangel-nubla/hassio-step-ca-client/actions
-[license-shield]: https://img.shields.io/github/license/miguelangel-nubla/hassio-step-ca-client.svg
+[commits-shield]: https://img.shields.io/github/commit-activity/y/jvandertil/homeassistant-step-ca.svg
+[commits]: https://github.com/jvandertil/homeassistant-step-ca/commits/main
+[contributors]: https://github.com/jvandertil/homeassistant-step-ca/graphs/contributors
+[docs]: https://github.com/jvandertil/homeassistant-step-ca/blob/main/step-ca-client/DOCS.md
+[github-actions-shield]: https://github.com/jvandertil/homeassistant-step-ca/workflows/CI/badge.svg
+[github-actions]: https://github.com/jvandertil/homeassistant-step-ca/actions
+[license-shield]: https://img.shields.io/github/license/jvandertil/homeassistant-step-ca.svg
 [maintenance-shield]: https://img.shields.io/maintenance/yes/2023.svg
-[miguelangel-nubla]: https://github.com/miguelangel-nubla
+[maintainer]: https://github.com/jvandertil
 [pki-guide]: https://smallstep.com/blog/build-a-tiny-ca-with-raspberry-pi-yubikey/
 [pki-guide-yubikey]: https://smallstep.com/blog/build-a-tiny-ca-with-raspberry-pi-yubikey/
 [project-stage-shield]: https://img.shields.io/badge/project%20stage-production%20ready-brightgreen.svg
-[releases-shield]: https://img.shields.io/github/release/miguelangel-nubla/hassio-step-ca-client.svg
-[releases]: https://github.com/miguelangel-nubla/hassio-step-ca-client/releases
+[releases-shield]: https://img.shields.io/github/release/jvandertil/homeassistant-step-ca.svg
+[releases]: https://github.com/jvandertil/homeassistant-step-ca/releases
 [step-ca]: https://smallstep.com/docs/step-ca/installation

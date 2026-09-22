@@ -14,8 +14,8 @@ With a Yubikey, you can even set up set up a [hardware-based, local PKI][pki-gui
 
 You will need a one-time token generated with `step ca token` to issue the
 certificate, and to keep the addon always running so it renews the certificate
-automatically (enable "Start on boot" and "Watchdog" on the
-[addon configuration page][addon-config]).
+automatically (enable "Start on boot" and "Watchdog" on the add-on
+configuration page).
 
 **Note**: Certificates in step-ca have short lifetimes, usually 24 hours, if the addon
 is not running and the certificate expires, you must manually generate
@@ -158,47 +158,23 @@ Thank you for being involved! :heart_eyes:
 
 ## Authors & contributors
 
-Addon created by [Miguel Angel Nubla][miguelangel-nubla] based on the
-[addon-example][addon-example] repository by [Franck Nijhof][frenck].
+Maintained by [jvandertil][maintainer]. The original add-on was created by
+Miguel Angel Nubla and based on Home Assistant's add-on example.
 
 For a full list of all authors and contributors,
 check [the contributor's page][contributors].
 
 ## License
 
-MIT License
+See [LICENSE.md](../LICENSE.md).
 
-Copyright (c) 2023 Miguel Angel Nubla
-
-Copyright (c) 2017-2023 Franck Nijhof
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-[addon-config]: https://my.home-assistant.io/redirect/supervisor_addon/?addon=133adb15_step-ca-client&repository_url=https%3A%2F%2Fgithub.com%2Fmiguelangel-nubla%2Fhassio-repository
 [addon-example]: https://github.com/hassio-addons/addon-example
-[contributors]: https://github.com/miguelangel-nubla/hassio-step-ca-client/graphs/contributors
+[contributors]: https://github.com/jvandertil/homeassistant-step-ca/graphs/contributors
 [docs-step-ca-certificate-kty]: https://smallstep.com/docs/step-cli/reference/ca/certificate#:~:text=token%20generating%20key.-,%2D%2Dkty%3D,-kty
-[frenck]: https://github.com/frenck
-[miguelangel-nubla]: https://github.com/miguelangel-nubla
+[maintainer]: https://github.com/jvandertil
 [pki-guide]: https://smallstep.com/docs/step-ca/getting-started
 [pki-guide-yubikey]: https://smallstep.com/blog/build-a-tiny-ca-with-raspberry-pi-yubikey/
-[releases]: https://github.com/miguelangel-nubla/hassio-step-ca-client/releases
+[releases]: https://github.com/jvandertil/homeassistant-step-ca/releases
 [semver]: http://semver.org/spec/v2.0.0.html
 [step-ca]: https://smallstep.com/docs/step-ca/installation
 [tasmota-mqtt-over-tls]: https://tasmota.github.io/docs/TLS/

@@ -1,14 +1,16 @@
 ARG BUILD_FROM=ghcr.io/hassio-addons/base:stable
+ARG STEP_CLI_VERSION=0.30.6-r1
 # hadolint ignore=DL3006
 FROM ${BUILD_FROM}
+
+ARG STEP_CLI_VERSION
 
 # Copy root filesystem
 COPY rootfs /
 
 # Setup base
-# hadolint ignore=DL3018
 RUN apk add --no-cache \
-    step-cli
+    "step-cli=${STEP_CLI_VERSION}"
 
 # Build arguments
 ARG BUILD_ARCH
@@ -26,10 +28,10 @@ LABEL \
     io.hass.arch="${BUILD_ARCH}" \
     io.hass.type="addon" \
     io.hass.version=${BUILD_VERSION} \
-    maintainer="Miguel Angel Nubla <miguelangel.nubla@gmail.com>" \
+    maintainer="jvandertil" \
     org.opencontainers.image.title="${BUILD_NAME}" \
     org.opencontainers.image.description="${BUILD_DESCRIPTION}" \
-    org.opencontainers.image.authors="Miguel Angel Nubla <miguelangel.nubla@gmail.com>" \
+    org.opencontainers.image.authors="https://github.com/jvandertil" \
     org.opencontainers.image.licenses="MIT" \
     org.opencontainers.image.source="https://github.com/${BUILD_REPOSITORY}" \
     org.opencontainers.image.documentation="https://github.com/${BUILD_REPOSITORY}/blob/main/README.md" \

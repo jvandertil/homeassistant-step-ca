@@ -217,27 +217,37 @@ test_renewal_daemon_retries_after_backoff() {
     collect_deprecation_notices "${retry_name}"
 }
 
-test_staged_due_renewal_preserves_key() {
-    local due_step="${tmp_dir}/due-step" key_before
+test_configured_threshold_stages_renewal() {
+    local due_step="${tmp_dir}/due-step" key_before certificate_before
+    local updated_options="${tmp_dir}/threshold-options.json"
     # shellcheck disable=SC2016
     printf '%s\n' \
         '#!/usr/bin/env bash' \
         'if [[ "$1" == '\''certificate'\'' && "$2" == '\''needs-renewal'\'' ]]; then' \
-        '    exit 0' \
+        '    [[ "$4" == '\''--expires-in=1h15m'\'' ]]' \
+        '    exit $?' \
         'fi' \
         'exec /usr/bin/step "$@"' >"${due_step}"
     chmod 0755 "${due_step}"
     key_before="$(file_fingerprint "${addon_name}" /ssl/privkey.pem)"
+    certificate_before="$(file_fingerprint "${addon_name}" /ssl/fullchain.pem)"
+    sed 's/"renewal_threshold": "66%"/"renewal_threshold": "1h15m"/' \
+        "${options_file}" >"${updated_options}"
+    cat "${updated_options}" >"${options_file}"
     "${container_engine}" rm --force "${addon_name}" >/dev/null
     start_server_addon "${addon_name}" --volume "${due_step}:/usr/local/bin/step:ro"
-    if ! wait_for 'staged due renewal' 45 \
+    if ! wait_for 'configured threshold renewal' 45 \
         "${container_engine}" exec "${addon_name}" test -s /data/step-ca-server-last-renewal; then
         "${container_engine}" logs "${addon_name}" >&2 || true
         return 1
     fi
+    test "$(file_fingerprint "${addon_name}" /ssl/fullchain.pem)" != "${certificate_before}"
     test "$(file_fingerprint "${addon_name}" /ssl/privkey.pem)" = "${key_before}"
     assert_recovery_pair "${addon_name}" server /ssl/fullchain.pem /ssl/privkey.pem
     verify_certificate "${addon_name}" /ssl/fullchain.pem /ssl/ca.pem
+    sed 's/"renewal_threshold": "1h15m"/"renewal_threshold": "66%"/' \
+        "${options_file}" >"${updated_options}"
+    cat "${updated_options}" >"${options_file}"
 }
 
 main() {
@@ -253,7 +263,7 @@ main() {
     run_test 'Startup keeps a completed renewal' test_startup_keeps_completed_renewal
     run_test 'Startup repairs partial recovery' test_startup_repairs_partial_recovery
     run_test 'Startup completes pending issuance' test_startup_completes_pending_issuance
-    run_test 'Staged due renewal preserves the key' test_staged_due_renewal_preserves_key
+    run_test 'Configured threshold stages renewal and preserves the key' test_configured_threshold_stages_renewal
     run_test 'Renewal daemon retries after backoff' test_renewal_daemon_retries_after_backoff
     run_test 'Unusable pairs reach token fallback' test_unusable_pairs_reach_token_fallback
     report_deprecation_notices

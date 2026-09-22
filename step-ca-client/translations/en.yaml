@@ -35,6 +35,12 @@ configuration:
       Choose renew to retain the existing private key, or rekey to generate a
       new private key with each certificate update. Restart the add-on after
       changing this option.
+  renewal_threshold:
+    name: Certificate renewal threshold
+    description: >-
+      Percentage of lifetime elapsed (such as 66%) or time before expiry
+      (such as 24h). Default: 66%. Restart the app after changing this option.
+      Restore 66% after a temporary early renewal.
   retry_backoff_seconds:
     name: Renewal retry delay
     description: >-
@@ -111,6 +117,11 @@ configuration:
         name: Client key type
       renewal_method:
         name: Client renewal method
+      renewal_threshold:
+        name: Client certificate renewal threshold
+        description: >-
+          Percentage of lifetime elapsed (such as 66%) or time before expiry
+          (such as 24h). Default: 66%. Restart the app after changing this option.
       restart_ha:
         name: Restart Home Assistant core after client certificate renewal
       restart_addons:

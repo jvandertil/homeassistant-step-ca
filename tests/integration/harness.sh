@@ -141,6 +141,7 @@ write_options() {
         '  "keyfile": "privkey.pem",' \
         '  "certfile": "fullchain.pem",' \
         '  "renewal_method": "renew",' \
+        '  "renewal_threshold": "66%",' \
         "  \"retry_backoff_seconds\": ${retry_backoff_seconds}," \
         '  "restart_ha": false,' \
         '  "restart_addons": [],' \
@@ -163,6 +164,7 @@ write_client_options() {
         '  "keyfile": "privkey.pem",' \
         '  "certfile": "fullchain.pem",' \
         '  "renewal_method": "renew",' \
+        '  "renewal_threshold": "66%",' \
         "  \"retry_backoff_seconds\": ${retry_backoff_seconds}," \
         '  "restart_ha": false,' \
         '  "restart_addons": [],' \
@@ -180,6 +182,7 @@ write_client_options() {
         '    "certfile": "client-fullchain.pem",' \
         '    "key_type": "RSA",' \
         '    "renewal_method": "renew",' \
+        '    "renewal_threshold": "66%",' \
         '    "restart_ha": false,' \
         '    "restart_addons": []' \
         '  }' \

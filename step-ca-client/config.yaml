@@ -25,6 +25,7 @@ options:
   keyfile: privkey.pem
   certfile: fullchain.pem
   renewal_method: renew
+  renewal_threshold: 66%
   retry_backoff_seconds: 60
   renewal_check_interval_seconds: 3600
   restart_ha: true
@@ -55,6 +56,7 @@ options:
     certfile: client-fullchain.pem
     key_type: RSA
     renewal_method: renew
+    renewal_threshold: 66%
     restart_ha: false
     restart_addons: []
 schema:
@@ -67,6 +69,7 @@ schema:
   keyfile: str
   certfile: str
   renewal_method: list(renew|rekey)
+  renewal_threshold: str
   retry_backoff_seconds: int(1,3600)
   renewal_check_interval_seconds: int(1,86400)
   restart_ha: bool
@@ -98,6 +101,7 @@ schema:
     certfile: str
     key_type: list(EC|OKP|RSA)
     renewal_method: list(renew|rekey)
+    renewal_threshold: str
     restart_ha: bool
     restart_addons:
       - str

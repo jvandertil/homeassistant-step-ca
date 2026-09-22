@@ -10,6 +10,7 @@ validate_profile "${PROFILE}"
 CERTFILE="$(profile_ssl_file_path "${PROFILE}" certfile)"
 KEYFILE="$(profile_ssl_file_path "${PROFILE}" keyfile)"
 METHOD="$(profile_config "${PROFILE}" renewal_method)"
+THRESHOLD="$(profile_config "${PROFILE}" renewal_threshold)"
 KEY_TYPE="$(profile_config "${PROFILE}" key_type)"
 STEPPATH="$(profile_step_path "${PROFILE}")"
 RECOVERY_DIR="$(profile_recovery_dir "${PROFILE}")"
@@ -28,6 +29,18 @@ if [[ "${METHOD}" == rekey ]]; then
         EC|OKP|RSA) ;;
         *) bashio::log.fatal "Invalid ${PROFILE} key_type"; exit 1 ;;
     esac
+fi
+valid_threshold=false
+if [[ ${#THRESHOLD} -le 64 ]]; then
+    if [[ "${THRESHOLD}" =~ ^([0-9]{1,3})%$ ]]; then
+        if ((10#${BASH_REMATCH[1]} <= 100)); then valid_threshold=true; fi
+    elif [[ "${THRESHOLD}" =~ ^([0-9]+([.][0-9]+)?[smh])+$ ]]; then
+        valid_threshold=true
+    fi
+fi
+if [[ "${valid_threshold}" != true ]]; then
+    bashio::log.warning "Invalid ${PROFILE} renewal_threshold; using 66%"
+    THRESHOLD='66%'
 fi
 interval="$(bashio::config 'renewal_check_interval_seconds')"
 if [[ ! "${interval}" =~ ^[1-9][0-9]{0,5}$ ]] || ((10#${interval} > 86400)); then
@@ -53,7 +66,8 @@ save_recovery_pair "${PROFILE}" "${CERTFILE}" "${KEYFILE}"
 bashio::log.info "Starting ${PROFILE} certificate renewal checks"
 while true; do
     check_result=0
-    STEPPATH="${STEPPATH}" step certificate needs-renewal "${CERTFILE}" >/dev/null 2>&1 || check_result=$?
+    STEPPATH="${STEPPATH}" step certificate needs-renewal "${CERTFILE}" \
+        "--expires-in=${THRESHOLD}" >/dev/null 2>&1 || check_result=$?
     case "${check_result}" in
         0) due=on ;;
         1) due=off ;;

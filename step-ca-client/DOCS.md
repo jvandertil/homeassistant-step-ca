@@ -38,6 +38,7 @@ keyfile: privkey.pem
 certfile: fullchain.pem
 key_type: RSA
 renewal_method: renew
+renewal_threshold: 66%
 retry_backoff_seconds: 60
 renewal_check_interval_seconds: 3600
 log_level: info
@@ -65,6 +66,7 @@ client_certificate:
   certfile: client-fullchain.pem
   key_type: RSA
   renewal_method: renew
+  renewal_threshold: 66%
   restart_ha: false
   restart_addons: []
 ```
@@ -88,10 +90,11 @@ bootstrap context and `cafile`, so the two profiles can use different issuing
 CAs. All six configured file names (both profiles' CA, key, and certificate
 files) must be unique filenames relative to `/ssl`.
 
-`key_type` and `renewal_method` behave as for the server certificate. `renew`
-retains the client private key; `rekey` rotates it. Client `restart_addons` and
-`restart_ha` are independent of the server restart settings and default to no
-restarts. The Core restart toggle is an explicit operator-controlled hook only:
+`key_type`, `renewal_method`, and `renewal_threshold` behave as for the server
+certificate. `renew` retains the client private key; `rekey` rotates it. Client
+`restart_addons` and `restart_ha` are independent of the server restart
+settings and default to no restarts. The Core restart toggle is an explicit
+operator-controlled hook only:
 current Core integrations may not load a renewable certificate from `/ssl`, and
 enabling it does not configure a Core mTLS consumer.
 
@@ -177,6 +180,22 @@ renewal loop starts, so changing the add-on configuration does not alter an
 already running loop. Rekeying may require certificate-consuming services to
 accept the newly generated key; use `renew` unless key rotation is required.
 
+### Option: `renewal_threshold`
+
+When to renew a certificate. The default `66%` means renewal starts after 66%
+of the certificate's lifetime has elapsed. Lower percentages renew earlier.
+You can instead use a time before expiry, such as `24h`, `90m`, or `1h15m`.
+Only percentages or durations in seconds (`s`), minutes (`m`), and hours (`h`)
+are accepted. The server and client certificates have independent thresholds;
+`renewal_method` determines whether each due update renews or rekeys.
+
+Restart the app after changing this option; the new threshold is checked on
+startup. For a temporary early renewal, choose a value that makes the existing
+certificate due (for example, `4h` when it expires in 3 hours), then restore
+`66%` after it renews. This is an ongoing renewal
+policy, so leaving a low percentage or a duration longer than the lifetime of
+newly issued certificates can cause frequent repeat renewals.
+
 ### Option: `retry_backoff_seconds`
 
 The number of seconds (1–3600, default 60) to wait before restarting the
@@ -187,8 +206,8 @@ frequent retry attempts are acceptable.
 ### Option: `renewal_check_interval_seconds`
 
 Seconds between healthy checks (1–86400, default 3600). Each profile is
-checked on startup with `step certificate needs-renewal`; the default
-threshold is 66% of its lifetime. Failed due renewals are retried after
+checked on startup with `step certificate needs-renewal` using
+`renewal_threshold`. Failed due renewals are retried after
 `retry_backoff_seconds`.
 
 ### Option: `mqtt`

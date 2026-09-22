@@ -32,7 +32,9 @@ configuration:
   renewal_method:
     name: Certificate renewal method
     description: >-
-      Choose renew to retain the existing private key, or rekey to generate a new private key with each certificate update. Restart the add-on after changing this option.
+      Choose renew to retain the existing private key, or rekey to generate a
+      new private key with each certificate update. Restart the add-on after
+      changing this option.
   retry_backoff_seconds:
     name: Renewal retry delay
     description: >-
@@ -48,3 +50,37 @@ configuration:
     description: The amount of logging the add-on should do.
   key_type:
     name: Key type used for the certificate
+  client_certificate:
+    name: Optional client certificate
+    description: >-
+      An optional shared mTLS client identity. When disabled, no client key or certificate is created.
+    fields:
+      enabled:
+        name: Enable client certificate
+      ca_url:
+        name: Client step-ca Server URL
+        description: Leave blank to use the server certificate authority.
+      root_ca_fingerprint:
+        name: Client Root CA fingerprint
+        description: Leave blank to use the server certificate authority fingerprint.
+      token:
+        name: Client one-time token
+      subject:
+        name: Client certificate subject
+      sans:
+        name: Client certificate SANs
+        description: Use YAML configuration mode to list SANs included in the token and certificate request.
+      cafile:
+        name: Client Root CA certificate filename
+      keyfile:
+        name: Client private key filename
+      certfile:
+        name: Client certificate filename
+      key_type:
+        name: Client key type
+      renewal_method:
+        name: Client renewal method
+      restart_ha:
+        name: Restart Home Assistant core after client certificate renewal
+      restart_addons:
+        name: Apps to restart after client certificate renewal

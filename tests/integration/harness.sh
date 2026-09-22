@@ -19,9 +19,13 @@ readonly ca_name="${run_id}-ca"
 readonly supervisor_name="${run_id}-supervisor"
 readonly addon_name="${run_id}-addon-run"
 readonly retry_name="${run_id}-retry-run"
+readonly client_name="${run_id}-client-run"
 readonly network_name="${run_id}-network"
 readonly ca_volume="${run_id}-ca-data"
 readonly subject="client.integration.test"
+readonly client_server_subject="client-server.integration.test"
+readonly client_subject="client-auth.integration.test"
+readonly client_san="client-san.integration.test"
 readonly ca_image="smallstep/step-ca:0.30.2"
 readonly supervisor_image="python:3.13-alpine"
 readonly retry_backoff_seconds="${RETRY_BACKOFF_SECONDS:-1}"
@@ -48,7 +52,7 @@ validate_harness_configuration() {
 }
 
 cleanup() {
-    "${container_engine}" rm --force "${retry_name}" "${addon_name}" "${supervisor_name}" "${ca_name}" >/dev/null 2>&1 || true
+    "${container_engine}" rm --force "${retry_name}" "${client_name}" "${addon_name}" "${supervisor_name}" "${ca_name}" >/dev/null 2>&1 || true
     "${container_engine}" network rm "${network_name}" >/dev/null 2>&1 || true
     "${container_engine}" volume rm "${ca_volume}" >/dev/null 2>&1 || true
     rm -rf "${tmp_dir}"
@@ -137,6 +141,43 @@ write_options() {
         '}' >"${options_file}"
 }
 
+write_client_options() {
+    local server_token="$1"
+    local client_issuance_token="$2"
+
+    printf '%s\n' \
+        '{' \
+        '  "ca_url": "https://ca:9000",' \
+        "  \"root_ca_fingerprint\": \"${ca_fingerprint}\"," \
+        "  \"token\": \"${server_token}\"," \
+        "  \"subjects\": [\"${client_server_subject}\"]," \
+        '  "cafile": "ca.pem",' \
+        '  "keyfile": "privkey.pem",' \
+        '  "certfile": "fullchain.pem",' \
+        '  "renewal_method": "renew",' \
+        "  \"retry_backoff_seconds\": ${retry_backoff_seconds}," \
+        '  "restart_ha": false,' \
+        '  "restart_addons": [],' \
+        '  "log_level": "info",' \
+        '  "key_type": "RSA",' \
+        '  "client_certificate": {' \
+        '    "enabled": true,' \
+        '    "ca_url": "",' \
+        '    "root_ca_fingerprint": "",' \
+        "    \"token\": \"${client_issuance_token}\"," \
+        "    \"subject\": \"${client_subject}\"," \
+        "    \"sans\": [\"${client_san}\"]," \
+        '    "cafile": "client-ca.pem",' \
+        '    "keyfile": "client-privkey.pem",' \
+        '    "certfile": "client-fullchain.pem",' \
+        '    "key_type": "RSA",' \
+        '    "renewal_method": "renew",' \
+        '    "restart_ha": false,' \
+        '    "restart_addons": []' \
+        '  }' \
+        '}' >"${client_options_file}"
+}
+
 start_addon() {
     local name="$1"
     shift
@@ -147,6 +188,15 @@ start_addon() {
         --volume "${ssl_dir}:/ssl" \
         --env SUPERVISOR_TOKEN=integration-test-token \
         "$@" "${addon_image}" >/dev/null
+}
+
+start_client_addon() {
+    "${container_engine}" run --detach --name "${client_name}" --network "${network_name}" \
+        --platform "${platform}" \
+        --volume "${client_options_file}:/data/options.json:ro" \
+        --volume "${ssl_dir}:/ssl" \
+        --env SUPERVISOR_TOKEN=integration-test-token \
+        "${addon_image}" >/dev/null
 }
 
 start_supervisor_mock() {
@@ -169,6 +219,7 @@ initialize_harness() {
     readonly tmp_dir
     readonly ssl_dir="${tmp_dir}/ssl"
     readonly options_file="${tmp_dir}/options.json"
+    readonly client_options_file="${tmp_dir}/client-options.json"
     readonly deprecation_notices_file="${tmp_dir}/deprecation-notices.log"
     mkdir "${ssl_dir}"
     trap cleanup EXIT
@@ -201,6 +252,17 @@ initialize_harness() {
         --root /home/step/certs/root_ca.crt \
         --password-file /home/step/secrets/password)"
     readonly token
+    client_server_token="$("${container_engine}" exec "${ca_name}" step ca token "${client_server_subject}" \
+        --ca-url https://ca:9000 \
+        --root /home/step/certs/root_ca.crt \
+        --password-file /home/step/secrets/password)"
+    readonly client_server_token
+    client_token="$("${container_engine}" exec "${ca_name}" step ca token "${client_subject}" \
+        --san="${client_san}" --ca-url https://ca:9000 \
+        --root /home/step/certs/root_ca.crt \
+        --password-file /home/step/secrets/password)"
+    readonly client_token
     write_options "${token}"
+    write_client_options "${client_server_token}" "${client_token}"
     start_supervisor_mock
 }

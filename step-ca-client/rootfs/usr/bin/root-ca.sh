@@ -12,16 +12,19 @@ set -e
 source /usr/bin/helpers.sh
 set_debug
 
-bashio::log.info "Setting up Root CA authority"
+PROFILE="${1:-server}"
+bashio::log.info "Setting up Root CA authority for ${PROFILE} certificate profile"
 
-URL=$(bashio::config 'ca_url')
-FINGERPRINT=$(bashio::config 'root_ca_fingerprint')
-CAFILE="$(ssl_file_path 'cafile')"
+URL="$(profile_ca_url "${PROFILE}")"
+FINGERPRINT="$(profile_root_ca_fingerprint "${PROFILE}")"
+CAFILE="$(profile_ssl_file_path "${PROFILE}" cafile)"
+STEPPATH="$(profile_step_path "${PROFILE}")"
 
-if [[ ${STEPDEBUG} -eq 1 ]];then set -x; fi;
-step ca bootstrap \
+# Do not trace this command: bootstrap context and CA details should not be
+# mixed between profiles, and debug output is not useful to operators here.
+STEPPATH="${STEPPATH}" step ca bootstrap \
     -f \
     --ca-url="$URL" \
     --fingerprint="$FINGERPRINT"
 
-step ca roots -f "${CAFILE}"
+STEPPATH="${STEPPATH}" step ca roots -f "${CAFILE}"

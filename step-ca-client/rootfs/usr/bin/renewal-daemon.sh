@@ -4,7 +4,8 @@
 # Home Assistant Add-on: step-ca-client
 #
 # step-ca-client add-on for Home Assistant.
-# This runs the automatic renewal of the certificates
+# This runs the automatic renewal of one certificate profile. Step-cli renews
+# a staged pair, and the callback validates it before atomically promoting it.
 # ==============================================================================
 set -e
 
@@ -12,46 +13,53 @@ set -e
 source /usr/bin/helpers.sh
 set_debug
 
-CERTFILE="$(ssl_file_path 'certfile')"
-KEYFILE="$(ssl_file_path 'keyfile')"
-RENEWAL_METHOD="$(bashio::config 'renewal_method')"
-KEY_TYPE="$(bashio::config 'key_type')"
+PROFILE="${1:-server}"
+CERTFILE="$(profile_ssl_file_path "${PROFILE}" certfile)"
+KEYFILE="$(profile_ssl_file_path "${PROFILE}" keyfile)"
+RENEWAL_METHOD="$(profile_config "${PROFILE}" renewal_method)"
+KEY_TYPE="$(profile_config "${PROFILE}" key_type)"
+STEPPATH="$(profile_step_path "${PROFILE}")"
+STAGE_DIR="/tmp/step-ca-${PROFILE}-active"
+STAGE_CERT="${STAGE_DIR}/certificate.pem"
+STAGE_KEY="${STAGE_DIR}/key.pem"
 
 case "${RENEWAL_METHOD}" in
     renew|rekey)
         ;;
     *)
-        bashio::log.fatal "Configuration option 'renewal_method' must be either 'renew' or 'rekey'"
+        bashio::log.fatal "Configuration option for ${PROFILE} renewal_method must be either 'renew' or 'rekey'"
         exit 1
         ;;
 esac
 
-bashio::log.info "Starting certificate ${RENEWAL_METHOD} daemon"
-#running following in subshell hides the command output until complete
-if [[ ${STEPDEBUG} -eq 1 ]];then set -x; fi;
+bashio::log.info "Starting ${PROFILE} certificate ${RENEWAL_METHOD} daemon"
+mkdir -p "${STAGE_DIR}"
+cp "${CERTFILE}" "${STAGE_CERT}"
+cp "${KEYFILE}" "${STAGE_KEY}"
+chmod 0600 "${STAGE_KEY}"
 case "${RENEWAL_METHOD}" in
     renew)
-        step ca renew \
+        STEPPATH="${STEPPATH}" step ca renew \
             -f \
             --daemon \
-            --exec="/usr/bin/reload-certificates.sh" \
-            "${CERTFILE}" "${KEYFILE}"
+            --exec="/usr/bin/promote-certificate.sh ${PROFILE}" \
+            "${STAGE_CERT}" "${STAGE_KEY}"
         ;;
     rekey)
         case "${KEY_TYPE}" in
             EC|OKP|RSA)
                 ;;
             *)
-                bashio::log.fatal "Configuration option 'key_type' must be EC, OKP, or RSA"
+                bashio::log.fatal "Configuration option for ${PROFILE} key_type must be EC, OKP, or RSA"
                 exit 1
                 ;;
         esac
 
-        step ca rekey \
+        STEPPATH="${STEPPATH}" step ca rekey \
             -f \
             --kty="${KEY_TYPE}" \
             --daemon \
-            --exec="/usr/bin/reload-certificates.sh" \
-            "${CERTFILE}" "${KEYFILE}"
+            --exec="/usr/bin/promote-certificate.sh ${PROFILE}" \
+            "${STAGE_CERT}" "${STAGE_KEY}"
         ;;
 esac

@@ -1,0 +1,21 @@
+#!/command/with-contenv bashio
+# shellcheck shell=bash
+set -e
+
+sleep 2
+# shellcheck source=/dev/null
+source /usr/bin/helpers.sh
+set_debug
+if ! client_certificate_enabled; then
+    bashio::log.info "Client certificate profile is disabled"
+    exec sleep infinity
+fi
+validate_client_certificate_profile
+validate_ssl_file_names
+/usr/bin/root-ca.sh client
+CERTFILE="$(profile_ssl_file_path client certfile)"
+if ! STEPPATH="$(profile_step_path client)" step certificate verify \
+    "${CERTFILE}" -roots="$(profile_step_path client)/certs/root_ca.crt"; then
+    /usr/bin/create-with-token.sh client
+fi
+exec /usr/bin/renewal-daemon.sh client

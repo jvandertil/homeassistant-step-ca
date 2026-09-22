@@ -40,7 +40,48 @@ key_type: RSA
 renewal_method: renew
 retry_backoff_seconds: 60
 log_level: info
+client_certificate:
+  enabled: false
+  # Leave these blank to use the server CA above.
+  ca_url: ""
+  root_ca_fingerprint: ""
+  token: ""
+  subject: homeassistant-client
+  sans: []
+  cafile: client-ca.pem
+  keyfile: client-privkey.pem
+  certfile: client-fullchain.pem
+  key_type: RSA
+  renewal_method: renew
+  restart_ha: false
+  restart_addons: []
 ```
+
+### Optional `client_certificate` identity
+
+`client_certificate` manages one reusable client-authentication (mTLS)
+certificate and private key under `/ssl`. It is disabled by default and is not
+used by Home Assistant or MQTT automatically. Enable it only for a trusted
+consumer that you configure separately; every `/ssl` consumer can read this
+private key. Do not reuse this shared identity for devices: devices should have
+their own identities.
+
+Set `enabled: true`, supply a `token` and non-empty `subject`, and optionally
+list `sans`. The token must include the subject and every SAN (`step ca token`
+requires matching `--san` flags), just like the server certificate token.
+
+The client uses the server `ca_url` and `root_ca_fingerprint` when its own
+values are blank. Supplying both client CA values creates an isolated Step CLI
+bootstrap context and `cafile`, so the two profiles can use different issuing
+CAs. All six configured file names (both profiles' CA, key, and certificate
+files) must be unique filenames relative to `/ssl`.
+
+`key_type` and `renewal_method` behave as for the server certificate. `renew`
+retains the client private key; `rekey` rotates it. Client `restart_addons` and
+`restart_ha` are independent of the server restart settings and default to no
+restarts. The Core restart toggle is an explicit operator-controlled hook only:
+current Core integrations may not load a renewable certificate from `/ssl`, and
+enabling it does not configure a Core mTLS consumer.
 
 ### Option: `ca_url`
 

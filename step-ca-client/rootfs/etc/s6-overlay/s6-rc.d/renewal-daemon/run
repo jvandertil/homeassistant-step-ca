@@ -14,15 +14,15 @@ set_debug
 validate_ssl_file_names
 
 bashio::log.info "Starting step-ca-client"
-/usr/bin/root-ca.sh
+/usr/bin/root-ca.sh server
 
-CERTFILE="$(ssl_file_path 'certfile')"
+CERTFILE="$(profile_ssl_file_path server certfile)"
 if ! step certificate verify \
     "${CERTFILE}" \
-    -roots=/root/.step/certs/root_ca.crt
+    -roots="$(profile_step_path server)/certs/root_ca.crt"
 then
-    /usr/bin/create-with-token.sh
+    /usr/bin/create-with-token.sh server
 fi
 
 bashio::log.info "Starting renewal daemon..."
-exec /usr/bin/renewal-daemon.sh
+exec /usr/bin/renewal-daemon.sh server

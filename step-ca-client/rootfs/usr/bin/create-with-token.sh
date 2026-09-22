@@ -12,19 +12,30 @@ set -e
 source /usr/bin/helpers.sh
 set_debug
 
-bashio::log.warning "Previous certificate not valid for renewal, forcing creation of new one using token"
+PROFILE="${1:-server}"
+bashio::log.warning "Previous ${PROFILE} certificate not valid for renewal, forcing creation using token"
 
-KEYTYPE="$(bashio::config 'key_type')"
-TOKEN="$(bashio::config 'token')"
-MAINSUBJECT="$(bashio::config 'subjects' | head -1)"
-CERTFILE="$(ssl_file_path 'certfile')"
-KEYFILE="$(ssl_file_path 'keyfile')"
+KEYTYPE="$(profile_config "${PROFILE}" key_type)"
+TOKEN="$(profile_config "${PROFILE}" token)"
+if [[ "${PROFILE}" == server ]]; then
+    MAINSUBJECT="$(bashio::config 'subjects' | head -1)"
+else
+    MAINSUBJECT="$(profile_config "${PROFILE}" subject)"
+fi
+CERTFILE="$(profile_ssl_file_path "${PROFILE}" certfile)"
+KEYFILE="$(profile_ssl_file_path "${PROFILE}" keyfile)"
+STEPPATH="$(profile_step_path "${PROFILE}")"
+STAGE_DIR="/tmp/step-ca-${PROFILE}-initial"
+STAGE_CERT="${STAGE_DIR}/certificate.pem"
+STAGE_KEY="${STAGE_DIR}/key.pem"
+mkdir -p "${STAGE_DIR}"
 
 # Do not enable shell tracing here: it would disclose the one-time token in
 # Home Assistant's add-on logs.
-step ca certificate \
-    -f \
-    --kty="${KEYTYPE}" \
-    --token="${TOKEN}" \
-    "${MAINSUBJECT}" "${CERTFILE}" "${KEYFILE}"
-/usr/bin/reload-certificates.sh
+STEPPATH="${STEPPATH}" step ca certificate -f "--kty=${KEYTYPE}" "--token=${TOKEN}" \
+    "${MAINSUBJECT}" "${STAGE_CERT}" "${STAGE_KEY}"
+test -s "${STAGE_CERT}" && test -s "${STAGE_KEY}"
+step certificate verify "${STAGE_CERT}" \
+    -roots="${STEPPATH}/certs/root_ca.crt"
+promote_certificate_pair "${STAGE_CERT}" "${STAGE_KEY}" "${CERTFILE}" "${KEYFILE}"
+/usr/bin/reload-certificates.sh "${PROFILE}"

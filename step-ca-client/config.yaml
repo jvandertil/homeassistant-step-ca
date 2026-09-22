@@ -31,6 +31,20 @@ options:
     - core_mosquitto
   log_level: info
   key_type: RSA
+  client_certificate:
+    enabled: false
+    ca_url: ""
+    root_ca_fingerprint: ""
+    token: ""
+    subject: ""
+    sans: []
+    cafile: client-ca.pem
+    keyfile: client-privkey.pem
+    certfile: client-fullchain.pem
+    key_type: RSA
+    renewal_method: renew
+    restart_ha: false
+    restart_addons: []
 schema:
   ca_url: url
   root_ca_fingerprint: str
@@ -47,3 +61,19 @@ schema:
     - str
   log_level: list(trace|debug|info|notice|warning|error|fatal)
   key_type: list(EC|OKP|RSA)
+  client_certificate:
+    enabled: bool
+    ca_url: str?
+    root_ca_fingerprint: str?
+    token: password
+    subject: str
+    sans:
+      - str
+    cafile: str
+    keyfile: str
+    certfile: str
+    key_type: list(EC|OKP|RSA)
+    renewal_method: list(renew|rekey)
+    restart_ha: bool
+    restart_addons:
+      - str

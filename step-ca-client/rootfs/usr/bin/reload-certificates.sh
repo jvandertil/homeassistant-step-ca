@@ -1,78 +1,53 @@
 #!/command/with-contenv bashio
 # shellcheck shell=bash
-# ==============================================================================
-# Home Assistant Add-on: step-ca-client
-#
-# step-ca-client add-on for Home Assistant.
-# This reloads the certificate in the Home Assistant web server and the apps
-# that use the certificates.
-# Currently there is no way to reload the certificates on the fly, so a
-# full restart of core is required. It is a PR away...
-# Ideally a way to reload the certificates on modification has to be found.
-# ==============================================================================
 set -e
 
 # shellcheck source=/dev/null
 source /usr/bin/helpers.sh
 
-CERTFILE="$(ssl_file_path 'certfile')"
-
-
-# ------------------------------------------------------------------------------
-# SAN Verification Logic
-# ------------------------------------------------------------------------------
-
-# 1. Get Configured SANs: Remove empty lines, sort alphabetically
-CONFIG_SANS=$(bashio::config 'subjects' | sed '/^$/d' | sort)
-
-# 2. Get Certificate SANs: We use '.names[]' which includes CN + SANs
-CERT_SANS=$(step certificate inspect "${CERTFILE}" --format json | jq -r '.names[]' | sort)
-
-if [ "$CONFIG_SANS" != "$CERT_SANS" ]; then
-    bashio::log.warning "---------------------------------------------------"
-    bashio::log.warning "CERTIFICATE MISMATCH DETECTED!"
-    bashio::log.warning "The generated certificate does not match configured SANs."
-    bashio::log.warning ""
-    # Flatten output for logging
-    bashio::log.warning "Add-on configured SANs: $(echo "$CONFIG_SANS" | tr '\n' ' ')"
-    bashio::log.warning "Certificate SANs: $(echo "$CERT_SANS" | tr '\n' ' ')"
-    bashio::log.warning "---------------------------------------------------"
+PROFILE="${1:-server}"
+CERTFILE="$(profile_ssl_file_path "${PROFILE}" certfile)"
+if [[ "${PROFILE}" == server ]]; then
+    CONFIG_SANS="$(bashio::config 'subjects' | sed '/^$/d' | sort)"
 else
-    bashio::log.info "Certificate verified: SANs match configuration."
+    CONFIG_SANS="$(printf '%s\n%s\n' "$(profile_config client subject)" "$(profile_config client sans)" | sed '/^$/d' | sort)"
 fi
-# ------------------------------------------------------------------------------
-
-
-bashio::log.notice "Services need to be restarted so new certificates are loaded"
-ADDONS="$(bashio::config 'restart_addons')"
-RESTART_HA="$(bashio::config 'restart_ha')"
-
-if [[ -n "${ADDONS}" || "${RESTART_HA}" == true ]]; then
-    bashio::log.info "Restarting will be delayed 5m to avoid losing connectivity on add-on start"
-    bashio::log.info "If you want to force it, you can always restart this add-on and do it manually"
-    bashio::log.info "The add-on will not try to restart again until a new renewal is completed"
-    sleep 300
+CERT_SANS="$(step certificate inspect "${CERTFILE}" --format json | jq -r '.names[]' | sort)"
+if [[ "${CONFIG_SANS}" != "${CERT_SANS}" ]]; then
+    bashio::log.warning "${PROFILE} certificate SANs do not match its configured subject/SANs"
 else
-    bashio::log.info "No services are configured to restart; skipping restart delay"
+    bashio::log.info "${PROFILE} certificate verified: SANs match configuration."
 fi
 
-if [ -n "${ADDONS}" ]; then
-    bashio::log.warning "Restarting specified apps..."
+ADDONS="$(profile_config "${PROFILE}" restart_addons)"
+RESTART_HA="$(profile_config "${PROFILE}" restart_ha)"
+if [[ -z "${ADDONS}" && "${RESTART_HA}" != true ]]; then
+    bashio::log.info "No ${PROFILE} services are configured to restart; skipping restart delay"
+    exit 0
+fi
+
+lock_dir='/run/step-ca-client-restart.lock'
+while ! mkdir "${lock_dir}" 2>/dev/null; do
+    bashio::log.info "Waiting for another certificate profile's restart callback"
+    sleep 1
+done
+unlock() { rmdir "${lock_dir}"; }
+trap unlock EXIT
+bashio::log.notice "${PROFILE} certificate updated; services restart in 5 minutes"
+sleep 300
+
+if [[ -n "${ADDONS}" ]]; then
     while IFS= read -r app; do
-        if bashio::var.true "$(bashio::app.installed "$app")"; then
-            (bashio::app.restart "$app" && bashio::log.info "App $app restarted") \
-            || bashio::log.error "Failed to restart $app"
+        [[ -z "${app}" ]] && continue
+        if bashio::var.true "$(bashio::app.installed "${app}")"; then
+            (bashio::app.restart "${app}" && bashio::log.info "App ${app} restarted") \
+                || bashio::log.error "Failed to restart app ${app}"
         else
-            bashio::log.warning "Configured app $app is not installed; skipping restart"
+            bashio::log.warning "Configured app ${app} is not installed; skipping restart"
         fi
     done <<< "${ADDONS}"
 fi
-
-
 if [[ "${RESTART_HA}" == true ]]; then
-    bashio::log.warning "Restarting Home Assistant core..."
     (bashio::core.restart && bashio::log.info "Home Assistant core restarted") \
-    || bashio::log.error "Failed to restart Home Assistant core"
+        || bashio::log.error "Failed to restart Home Assistant core"
 fi
-
-bashio::log.notice "Finished with the restarts"

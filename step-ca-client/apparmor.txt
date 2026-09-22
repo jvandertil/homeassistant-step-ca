@@ -42,6 +42,10 @@ profile step-ca-client flags=(attach_disconnected,mediate_deleted) {
     # step data directory
     /root/.step/ rw,
     /root/.step/** rw,
+    /root/.step-server/ rw,
+    /root/.step-server/** rw,
+    /root/.step-client/ rw,
+    /root/.step-client/** rw,
 
     # Access to mapped volumes specified in config.json
     /ssl/** rw,
@@ -64,5 +68,6 @@ profile step-ca-client flags=(attach_disconnected,mediate_deleted) {
 
     # Access to the helper scripts
     /usr/bin/reload-certificates.sh ux,
+    /usr/bin/promote-certificate.sh ux,
   }
 }

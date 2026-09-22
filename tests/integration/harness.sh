@@ -29,6 +29,8 @@ readonly client_san="client-san.integration.test"
 readonly ca_image="smallstep/step-ca:0.30.2"
 readonly supervisor_image="python:3.13-alpine"
 readonly retry_backoff_seconds="${RETRY_BACKOFF_SECONDS:-1}"
+readonly server_supervisor_token="integration-test-server-token"
+readonly client_supervisor_token="integration-test-client-token"
 
 validate_harness_configuration() {
     case "${platform}" in
@@ -74,17 +76,20 @@ wait_for() {
     return 1
 }
 
-key_fingerprint() {
-    "${container_engine}" exec "${addon_name}" sha256sum /ssl/privkey.pem | awk '{print $1}'
-}
+file_fingerprint() {
+    local container_name="$1"
+    local path="$2"
 
-certificate_fingerprint() {
-    "${container_engine}" exec "${addon_name}" sha256sum /ssl/fullchain.pem | awk '{print $1}'
+    "${container_engine}" exec "${container_name}" sha256sum "${path}" | awk '{print $1}'
 }
 
 verify_certificate() {
-    "${container_engine}" exec "${addon_name}" step certificate verify \
-        /ssl/fullchain.pem -roots=/ssl/ca.pem
+    local container_name="$1"
+    local certificate_path="$2"
+    local root_path="$3"
+
+    "${container_engine}" exec "${container_name}" step certificate verify \
+        "${certificate_path}" -roots="${root_path}"
 }
 
 show_container_logs() {
@@ -180,30 +185,41 @@ write_client_options() {
 
 start_addon() {
     local name="$1"
-    shift
+    local options="$2"
+    local ssl="$3"
+    local supervisor_token="$4"
+    shift 4
 
     "${container_engine}" run --detach --name "${name}" --network "${network_name}" \
         --platform "${platform}" \
-        --volume "${options_file}:/data/options.json:ro" \
-        --volume "${ssl_dir}:/ssl" \
-        --env SUPERVISOR_TOKEN=integration-test-token \
+        --volume "${options}:/data/options.json:ro" \
+        --volume "${ssl}:/ssl" \
+        --env "SUPERVISOR_TOKEN=${supervisor_token}" \
         "$@" "${addon_image}" >/dev/null
 }
 
+start_server_addon() {
+    local name="$1"
+    shift
+
+    start_addon "${name}" "${options_file}" "${ssl_dir}" \
+        "${server_supervisor_token}" "$@"
+}
+
 start_client_addon() {
-    "${container_engine}" run --detach --name "${client_name}" --network "${network_name}" \
-        --platform "${platform}" \
-        --volume "${client_options_file}:/data/options.json:ro" \
-        --volume "${ssl_dir}:/ssl" \
-        --env SUPERVISOR_TOKEN=integration-test-token \
-        "${addon_image}" >/dev/null
+    start_addon "${client_name}" "${client_options_file}" "${client_ssl_dir}" \
+        "${client_supervisor_token}"
 }
 
 start_supervisor_mock() {
     "${container_engine}" run --detach --name "${supervisor_name}" --network "${network_name}" \
         --network-alias supervisor --platform "${platform}" \
-        --env OPTIONS_FILE=/options.json \
-        --volume "${options_file}:/options.json:ro" \
+        --env SERVER_OPTIONS_FILE=/server-options.json \
+        --env CLIENT_OPTIONS_FILE=/client-options.json \
+        --env "SERVER_SUPERVISOR_TOKEN=${server_supervisor_token}" \
+        --env "CLIENT_SUPERVISOR_TOKEN=${client_supervisor_token}" \
+        --volume "${options_file}:/server-options.json:ro" \
+        --volume "${client_options_file}:/client-options.json:ro" \
         --volume "${root_dir}/tests/integration/supervisor_mock.py:/server.py:ro" \
         "${supervisor_image}" python /server.py >/dev/null
 
@@ -218,10 +234,11 @@ initialize_harness() {
     tmp_dir="$(mktemp -d)"
     readonly tmp_dir
     readonly ssl_dir="${tmp_dir}/ssl"
+    readonly client_ssl_dir="${tmp_dir}/client-ssl"
     readonly options_file="${tmp_dir}/options.json"
     readonly client_options_file="${tmp_dir}/client-options.json"
     readonly deprecation_notices_file="${tmp_dir}/deprecation-notices.log"
-    mkdir "${ssl_dir}"
+    mkdir "${ssl_dir}" "${client_ssl_dir}"
     trap cleanup EXIT
 
     echo "Building add-on image for ${platform}"

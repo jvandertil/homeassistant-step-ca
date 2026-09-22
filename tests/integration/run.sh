@@ -33,18 +33,18 @@ run_test() {
 }
 
 test_initial_certificate_issuance() {
-    start_addon "${addon_name}"
+    start_server_addon "${addon_name}"
     if ! wait_for 'initial certificate issuance' 90 \
         "${container_engine}" exec "${addon_name}" test -s /ssl/fullchain.pem; then
         show_container_logs
         return 1
     fi
     "${container_engine}" exec "${addon_name}" test -s /ssl/privkey.pem
-    verify_certificate
+    verify_certificate "${addon_name}" /ssl/fullchain.pem /ssl/ca.pem
 
-    initial_key="$(key_fingerprint)"
+    initial_key="$(file_fingerprint "${addon_name}" /ssl/privkey.pem)"
     readonly initial_key
-    initial_certificate="$(certificate_fingerprint)"
+    initial_certificate="$(file_fingerprint "${addon_name}" /ssl/fullchain.pem)"
     readonly initial_certificate
     collect_deprecation_notices "${addon_name}"
 }
@@ -59,24 +59,26 @@ test_client_certificate_disabled_by_default() {
 }
 
 test_client_certificate_issuance_and_renewal() {
-    # Bashio reads effective options from the Supervisor API; point the mock at
-    # the enabled-client profile before starting this second add-on container.
-    cp "${client_options_file}" "${options_file}"
     start_client_addon
     if ! wait_for 'client certificate issuance' 90 \
-        "${container_engine}" exec "${client_name}" test -s /ssl/client-fullchain.pem; then
+        "${container_engine}" exec "${client_name}" sh -c \
+            'test -s /ssl/fullchain.pem && test -s /ssl/client-fullchain.pem'; then
         show_container_logs
         "${container_engine}" logs "${client_name}" >&2 || true
         return 1
     fi
+    verify_certificate "${client_name}" /ssl/fullchain.pem /ssl/ca.pem
+    verify_certificate "${client_name}" /ssl/client-fullchain.pem /ssl/client-ca.pem
+    "${container_engine}" exec "${client_name}" sh -c \
+        "step certificate inspect /ssl/fullchain.pem --format json | jq -e --arg subject '${client_server_subject}' '.names | index(\$subject)' >/dev/null"
     "${container_engine}" exec "${client_name}" test -s /ssl/client-privkey.pem
     "${container_engine}" exec "${client_name}" sh -c \
         "step certificate inspect /ssl/client-fullchain.pem --format json | jq -e --arg subject '${client_subject}' --arg san '${client_san}' '.names | index(\$subject) and index(\$san)' >/dev/null"
-    client_key_before="$("${container_engine}" exec "${client_name}" sha256sum /ssl/client-privkey.pem | awk '{print $1}')"
+    client_key_before="$(file_fingerprint "${client_name}" /ssl/client-privkey.pem)"
     "${container_engine}" exec --env STEPPATH=/root/.step-client "${client_name}" \
         step ca renew -f --exec='/usr/bin/promote-certificate.sh client' \
         /tmp/step-ca-client-active/certificate.pem /tmp/step-ca-client-active/key.pem
-    client_key_after="$("${container_engine}" exec "${client_name}" sha256sum /ssl/client-privkey.pem | awk '{print $1}')"
+    client_key_after="$(file_fingerprint "${client_name}" /ssl/client-privkey.pem)"
     test "${client_key_before}" = "${client_key_after}"
 }
 
@@ -84,9 +86,9 @@ test_renewal_preserves_private_key() {
     "${container_engine}" exec --env STEPPATH=/root/.step-server "${addon_name}" step ca renew -f \
         --exec=/usr/bin/reload-certificates.sh \
         /ssl/fullchain.pem /ssl/privkey.pem
-    renewed_key="$(key_fingerprint)"
+    renewed_key="$(file_fingerprint "${addon_name}" /ssl/privkey.pem)"
     readonly renewed_key
-    renewed_certificate="$(certificate_fingerprint)"
+    renewed_certificate="$(file_fingerprint "${addon_name}" /ssl/fullchain.pem)"
     readonly renewed_certificate
     test "${renewed_key}" = "${initial_key}"
     test "${renewed_certificate}" != "${initial_certificate}"
@@ -96,10 +98,10 @@ test_rekey_replaces_private_key() {
     "${container_engine}" exec --env STEPPATH=/root/.step-server "${addon_name}" step ca rekey -f --kty=RSA \
         --exec=/usr/bin/reload-certificates.sh \
         /ssl/fullchain.pem /ssl/privkey.pem
-    rekeyed_key="$(key_fingerprint)"
+    rekeyed_key="$(file_fingerprint "${addon_name}" /ssl/privkey.pem)"
     readonly rekeyed_key
     test "${rekeyed_key}" != "${renewed_key}"
-    verify_certificate
+    verify_certificate "${addon_name}" /ssl/fullchain.pem /ssl/ca.pem
 }
 
 test_renewal_daemon_retries_after_backoff() {
@@ -116,7 +118,7 @@ test_renewal_daemon_retries_after_backoff() {
     chmod 0755 "${failing_step}"
 
     "${container_engine}" rm --force "${addon_name}" >/dev/null
-    start_addon "${retry_name}" --volume "${failing_step}:/usr/local/bin/step:ro"
+    start_server_addon "${retry_name}" --volume "${failing_step}:/usr/local/bin/step:ro"
     wait_for 'renewal failure backoff' 30 \
         bash -c "${container_engine} logs '${retry_name}' 2>&1 | grep -Fq 'failed; retrying in ${retry_backoff_seconds} seconds'"
     wait_for 'renewal daemon restart after backoff' 30 \

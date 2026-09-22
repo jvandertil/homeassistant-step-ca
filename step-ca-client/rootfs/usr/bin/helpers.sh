@@ -148,7 +148,6 @@ function validate_ssl_file_names() {
     local -a paths=()
     local -a profiles=(server)
 
-    validate_client_certificate_profile
     if client_certificate_enabled; then
         profiles+=(client)
     fi

@@ -5,12 +5,15 @@ import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
-OPTIONS_FILE = os.environ["OPTIONS_FILE"]
+OPTIONS_FILES = {
+    os.environ["SERVER_SUPERVISOR_TOKEN"]: os.environ["SERVER_OPTIONS_FILE"],
+    os.environ["CLIENT_SUPERVISOR_TOKEN"]: os.environ["CLIENT_OPTIONS_FILE"],
+}
 
 
-def response(handler, payload):
+def response(handler, payload, status=200):
     body = json.dumps(payload).encode()
-    handler.send_response(200)
+    handler.send_response(status)
     handler.send_header("Content-Type", "application/json")
     handler.send_header("Content-Length", str(len(body)))
     handler.end_headers()
@@ -23,7 +26,14 @@ class SupervisorHandler(BaseHTTPRequestHandler):
             response(self, {"result": "ok"})
             return
 
-        with open(OPTIONS_FILE, encoding="utf-8") as options_file:
+        authorization = self.headers.get("Authorization", "")
+        token = authorization.removeprefix("Bearer ")
+        options_path = OPTIONS_FILES.get(token)
+        if options_path is None:
+            response(self, {"result": "error", "message": "unauthorized"}, 401)
+            return
+
+        with open(options_path, encoding="utf-8") as options_file:
             options = json.load(options_file)
 
         if self.path == "/addons/self/options/config":

@@ -17,7 +17,9 @@ if [[ "${PROFILE}" == client ]] && ! client_certificate_enabled; then
     exec sleep infinity
 fi
 
-validate_client_certificate_profile
+if [[ "${PROFILE}" == client ]]; then
+    validate_client_certificate_profile
+fi
 validate_ssl_file_names
 
 bashio::log.info "Starting ${PROFILE} certificate profile"

@@ -57,6 +57,9 @@ cleanup() {
     "${container_engine}" rm --force "${retry_name}" "${client_name}" "${addon_name}" "${supervisor_name}" "${ca_name}" >/dev/null 2>&1 || true
     "${container_engine}" network rm "${network_name}" >/dev/null 2>&1 || true
     "${container_engine}" volume rm "${ca_volume}" >/dev/null 2>&1 || true
+    "${container_engine}" run --rm --entrypoint /bin/sh \
+        --volume "${tmp_dir}:/test" "${addon_image}" \
+        -c 'chmod -R a+rwx /test' >/dev/null 2>&1 || true
     rm -rf "${tmp_dir}"
 }
 

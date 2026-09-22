@@ -83,6 +83,17 @@ restarts. The Core restart toggle is an explicit operator-controlled hook only:
 current Core integrations may not load a renewable certificate from `/ssl`, and
 enabling it does not configure a Core mTLS consumer.
 
+Each profile keeps a rolling recovery copy in `/ssl/.step-ca-server-recovery`
+or `/ssl/.step-ca-client-recovery`. These hidden directories are mode `0700`;
+their `key.pem` and temporary `pending-key.pem` files are mode `0600` and
+contain copies of the private keys.
+Protect `/ssl` backups accordingly. The add-on renews the active files directly.
+On startup it checks certificate and key fingerprints and the CA chain, then
+repairs an interrupted write from the recovery copy or completes a pending
+token issuance. A valid active renewal completed before its restart callback
+is kept and its consumers are restarted. If all available certificates are
+expired or invalid, issue a new one-time token manually and restart the add-on.
+
 ### Option: `ca_url`
 
 URL of the targeted Step Certificate Authority.

@@ -7,6 +7,7 @@
 # This runs the initial creation of the certificate from a one-time token
 # ==============================================================================
 set -e
+umask 077
 
 # shellcheck source=/dev/null
 source /usr/bin/helpers.sh
@@ -22,17 +23,23 @@ MAINSUBJECT="$(profile_subject "${PROFILE}")"
 CERTFILE="$(profile_ssl_file_path "${PROFILE}" certfile)"
 KEYFILE="$(profile_ssl_file_path "${PROFILE}" keyfile)"
 STEPPATH="$(profile_step_path "${PROFILE}")"
-STAGE_DIR="$(profile_stage_dir "${PROFILE}" initial)"
-STAGE_CERT="${STAGE_DIR}/certificate.pem"
-STAGE_KEY="${STAGE_DIR}/key.pem"
-mkdir -p "${STAGE_DIR}"
+RECOVERY_DIR="$(profile_recovery_dir "${PROFILE}")"
+PENDING_CERT="${RECOVERY_DIR}/pending-certificate.pem"
+PENDING_KEY="${RECOVERY_DIR}/pending-key.pem"
+RECOVERY_CERT="${RECOVERY_DIR}/certificate.pem"
+RECOVERY_KEY="${RECOVERY_DIR}/key.pem"
+mkdir -p "${RECOVERY_DIR}"
+chmod 0700 "${RECOVERY_DIR}"
+rm -f -- "${PENDING_CERT}" "${PENDING_KEY}"
 
 # Do not enable shell tracing here: it would disclose the one-time token in
 # Home Assistant's add-on logs.
 STEPPATH="${STEPPATH}" step ca certificate -f "--kty=${KEYTYPE}" "--token=${TOKEN}" \
-    "${MAINSUBJECT}" "${STAGE_CERT}" "${STAGE_KEY}"
-test -s "${STAGE_CERT}" && test -s "${STAGE_KEY}"
-step certificate verify "${STAGE_CERT}" \
-    -roots="${STEPPATH}/certs/root_ca.crt"
-promote_certificate_pair "${STAGE_CERT}" "${STAGE_KEY}" "${CERTFILE}" "${KEYFILE}"
+    "${MAINSUBJECT}" "${PENDING_CERT}" "${PENDING_KEY}"
+chmod 0600 "${PENDING_KEY}"
+certificate_pair_acceptable "${PENDING_CERT}" "${PENDING_KEY}" "${STEPPATH}"
+copy_certificate_pair "${PENDING_CERT}" "${PENDING_KEY}" "${CERTFILE}" "${KEYFILE}"
+certificate_pair_acceptable "${CERTFILE}" "${KEYFILE}" "${STEPPATH}"
 /usr/bin/reload-certificates.sh "${PROFILE}"
+copy_certificate_pair "${CERTFILE}" "${KEYFILE}" "${RECOVERY_CERT}" "${RECOVERY_KEY}"
+rm -f -- "${PENDING_CERT}" "${PENDING_KEY}"

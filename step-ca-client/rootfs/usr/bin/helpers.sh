@@ -74,16 +74,10 @@ function profile_step_path() {
     esac
 }
 
-function profile_stage_dir() {
+function profile_recovery_dir() {
     local profile="$1"
-    local purpose="$2"
-
     validate_profile "${profile}"
-    case "${purpose}" in
-        initial|active) ;;
-        *) bashio::log.fatal "Unknown certificate staging purpose '${purpose}'"; exit 1 ;;
-    esac
-    printf '/tmp/step-ca-%s-%s' "${profile}" "${purpose}"
+    printf '/ssl/.step-ca-%s-recovery' "${profile}"
 }
 
 function profile_subject() {
@@ -163,50 +157,57 @@ function validate_ssl_file_names() {
     done
 }
 
-# Replace the two live files with a staged, verified pair. Two path names
-# cannot be atomically swapped together on Linux, so retain copies of the old
-# pair and restore both paths if a command or signal interrupts promotion.
-function promote_certificate_pair() {
-    local staged_cert="$1"
-    local staged_key="$2"
-    local certfile="$3"
-    local keyfile="$4"
-    local old_cert='' old_key='' new_cert='' new_key=''
-    local had_cert=false had_key=false key_promoted=false cert_promoted=false
+function certificate_pair_matches() {
+    local cert="$1" key="$2" cert_fingerprint key_fingerprint
+    [[ -s "${cert}" && -s "${key}" ]] || return 1
+    cert_fingerprint="$(step crypto key fingerprint "${cert}" 2>/dev/null)" || return 1
+    key_fingerprint="$(step crypto key fingerprint "${key}" 2>/dev/null)" || return 1
+    [[ -n "${cert_fingerprint}" && "${cert_fingerprint}" == "${key_fingerprint}" ]]
+}
 
-    [[ -s "${staged_cert}" && -s "${staged_key}" ]] || return 1
-    if [[ -e "${certfile}" ]]; then
-        had_cert=true
-        old_cert="$(mktemp "${certfile}.rollback.XXXXXX")"
-        cp "${certfile}" "${old_cert}"
-    fi
-    if [[ -e "${keyfile}" ]]; then
-        had_key=true
-        old_key="$(mktemp "${keyfile}.rollback.XXXXXX")"
-        cp "${keyfile}" "${old_key}"
-        chmod 0600 "${old_key}"
-    fi
-    new_key="$(mktemp "${keyfile}.tmp.XXXXXX")"
-    new_cert="$(mktemp "${certfile}.tmp.XXXXXX")"
-    cp "${staged_key}" "${new_key}"
-    chmod 0600 "${new_key}"
-    cp "${staged_cert}" "${new_cert}"
+function certificate_pair_acceptable() {
+    local cert="$1" key="$2" step_path="$3"
+    certificate_pair_matches "${cert}" "${key}" &&
+        step certificate verify "${cert}" -roots="${step_path}/certs/root_ca.crt" >/dev/null 2>&1
+}
 
-    # shellcheck disable=SC2329 # Invoked by the EXIT/HUP/INT/TERM trap below.
-    rollback_pair() {
-        if [[ "${key_promoted}" == true ]]; then
-            if [[ "${had_key}" == true ]]; then mv -f "${old_key}" "${keyfile}"; else rm -f "${keyfile}"; fi
-        fi
-        if [[ "${cert_promoted}" == true ]]; then
-            if [[ "${had_cert}" == true ]]; then mv -f "${old_cert}" "${certfile}"; else rm -f "${certfile}"; fi
-        fi
-        rm -f "${new_key}" "${new_cert}" "${old_key}" "${old_cert}"
-    }
-    trap rollback_pair EXIT HUP INT TERM
-    mv -f "${new_key}" "${keyfile}"
-    key_promoted=true
-    mv -f "${new_cert}" "${certfile}"
-    cert_promoted=true
-    rm -f "${old_key}" "${old_cert}"
-    trap - EXIT HUP INT TERM
+# Copy through destination-local temporary files. Preserve the source until
+# both destination files have been renamed and verified as a matching pair.
+function copy_certificate_pair() {
+    local source_cert="$1" source_key="$2" dest_cert="$3" dest_key="$4"
+    local temp_cert temp_key
+    certificate_pair_matches "${source_cert}" "${source_key}" || return 1
+    temp_cert="$(mktemp "${dest_cert}.tmp.XXXXXX")"
+    temp_key="$(mktemp "${dest_key}.tmp.XXXXXX")"
+    cp -- "${source_cert}" "${temp_cert}"
+    cp -- "${source_key}" "${temp_key}"
+    chmod 0600 "${temp_key}"
+    if ! certificate_pair_matches "${temp_cert}" "${temp_key}"; then
+        rm -f -- "${temp_cert}" "${temp_key}"
+        return 1
+    fi
+    mv -f -- "${temp_key}" "${dest_key}"
+    mv -f -- "${temp_cert}" "${dest_cert}"
+    certificate_pair_matches "${dest_cert}" "${dest_key}"
+}
+
+function cleanup_recovery_artifacts() {
+    local certfile="$1" keyfile="$2" recovery_dir="$3" path
+    local -a artifacts=()
+    shopt -s nullglob
+    for path in "${certfile}".rollback.* "${certfile}".tmp.* \
+        "${keyfile}".rollback.* "${keyfile}".tmp.* \
+        "${recovery_dir}"/*.tmp.*; do
+        artifacts+=("${path}")
+    done
+    shopt -u nullglob
+    if ((${#artifacts[@]})); then rm -f -- "${artifacts[@]}"; fi
+    if [[ ! -s "${recovery_dir}/pending-certificate.pem" ||
+        ! -s "${recovery_dir}/pending-key.pem" ]]; then
+        rm -f -- "${recovery_dir}/pending-certificate.pem" "${recovery_dir}/pending-key.pem"
+    fi
+    if [[ ! -s "${recovery_dir}/certificate.pem" ||
+        ! -s "${recovery_dir}/key.pem" ]]; then
+        rm -f -- "${recovery_dir}/certificate.pem" "${recovery_dir}/key.pem"
+    fi
 }

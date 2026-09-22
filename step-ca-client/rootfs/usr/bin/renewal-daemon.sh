@@ -5,9 +5,10 @@
 #
 # step-ca-client add-on for Home Assistant.
 # This runs the automatic renewal of one certificate profile. Step-cli renews
-# a staged pair, and the callback validates it before atomically promoting it.
+# the live pair, and startup recovery repairs interrupted writes.
 # ==============================================================================
 set -e
+umask 077
 
 # shellcheck source=/dev/null
 source /usr/bin/helpers.sh
@@ -20,9 +21,9 @@ KEYFILE="$(profile_ssl_file_path "${PROFILE}" keyfile)"
 RENEWAL_METHOD="$(profile_config "${PROFILE}" renewal_method)"
 KEY_TYPE="$(profile_config "${PROFILE}" key_type)"
 STEPPATH="$(profile_step_path "${PROFILE}")"
-STAGE_DIR="$(profile_stage_dir "${PROFILE}" active)"
-STAGE_CERT="${STAGE_DIR}/certificate.pem"
-STAGE_KEY="${STAGE_DIR}/key.pem"
+RECOVERY_DIR="$(profile_recovery_dir "${PROFILE}")"
+RECOVERY_CERT="${RECOVERY_DIR}/certificate.pem"
+RECOVERY_KEY="${RECOVERY_DIR}/key.pem"
 
 case "${RENEWAL_METHOD}" in
     renew|rekey)
@@ -34,17 +35,20 @@ case "${RENEWAL_METHOD}" in
 esac
 
 bashio::log.info "Starting ${PROFILE} certificate ${RENEWAL_METHOD} daemon"
-mkdir -p "${STAGE_DIR}"
-cp "${CERTFILE}" "${STAGE_CERT}"
-cp "${KEYFILE}" "${STAGE_KEY}"
-chmod 0600 "${STAGE_KEY}"
+mkdir -p "${RECOVERY_DIR}"
+chmod 0700 "${RECOVERY_DIR}"
+certificate_pair_acceptable "${CERTFILE}" "${KEYFILE}" "${STEPPATH}"
+if ! certificate_pair_acceptable "${RECOVERY_CERT}" "${RECOVERY_KEY}" "${STEPPATH}" ||
+    [[ "$(step certificate fingerprint "${CERTFILE}")" != "$(step certificate fingerprint "${RECOVERY_CERT}")" ]]; then
+    copy_certificate_pair "${CERTFILE}" "${KEYFILE}" "${RECOVERY_CERT}" "${RECOVERY_KEY}"
+fi
 case "${RENEWAL_METHOD}" in
     renew)
         STEPPATH="${STEPPATH}" step ca renew \
             -f \
             --daemon \
-            --exec="/usr/bin/promote-certificate.sh ${PROFILE}" \
-            "${STAGE_CERT}" "${STAGE_KEY}"
+            --exec="/usr/bin/renewal-complete.sh ${PROFILE}" \
+            "${CERTFILE}" "${KEYFILE}"
         ;;
     rekey)
         case "${KEY_TYPE}" in
@@ -60,7 +64,7 @@ case "${RENEWAL_METHOD}" in
             -f \
             --kty="${KEY_TYPE}" \
             --daemon \
-            --exec="/usr/bin/promote-certificate.sh ${PROFILE}" \
-            "${STAGE_CERT}" "${STAGE_KEY}"
+            --exec="/usr/bin/renewal-complete.sh ${PROFILE}" \
+            "${CERTFILE}" "${KEYFILE}"
         ;;
 esac

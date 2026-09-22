@@ -68,6 +68,6 @@ profile step-ca-client flags=(attach_disconnected,mediate_deleted) {
 
     # Access to the helper scripts
     /usr/bin/reload-certificates.sh ux,
-    /usr/bin/promote-certificate.sh ux,
+    /usr/bin/renewal-complete.sh ux,
   }
 }

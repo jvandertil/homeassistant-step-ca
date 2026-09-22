@@ -76,15 +76,28 @@ test_client_certificate_issuance_and_renewal() {
         "step certificate inspect /ssl/client-fullchain.pem --format json | jq -e --arg subject '${client_subject}' --arg san '${client_san}' '.names | index(\$subject) and index(\$san)' >/dev/null"
     client_key_before="$(file_fingerprint "${client_name}" /ssl/client-privkey.pem)"
     "${container_engine}" exec --env STEPPATH=/root/.step-client "${client_name}" \
-        step ca renew -f --exec='/usr/bin/promote-certificate.sh client' \
-        /tmp/step-ca-client-active/certificate.pem /tmp/step-ca-client-active/key.pem
+        step ca renew -f --exec='/usr/bin/renewal-complete.sh client' \
+        /ssl/client-fullchain.pem /ssl/client-privkey.pem
     client_key_after="$(file_fingerprint "${client_name}" /ssl/client-privkey.pem)"
     test "${client_key_before}" = "${client_key_after}"
+    assert_recovery_pair "${client_name}" client /ssl/client-fullchain.pem /ssl/client-privkey.pem
+    assert_recovery_pair "${client_name}" server /ssl/fullchain.pem /ssl/privkey.pem
+}
+
+test_client_startup_restores_its_own_pair() {
+    "${container_engine}" exec "${client_name}" sh -c ': > /ssl/client-fullchain.pem'
+    "${container_engine}" rm --force "${client_name}" >/dev/null
+    start_client_addon
+    wait_for 'client pair restoration' 30 \
+        "${container_engine}" exec "${client_name}" cmp \
+            /ssl/client-fullchain.pem /ssl/.step-ca-client-recovery/certificate.pem
+    assert_recovery_pair "${client_name}" client /ssl/client-fullchain.pem /ssl/client-privkey.pem
+    assert_recovery_pair "${client_name}" server /ssl/fullchain.pem /ssl/privkey.pem
 }
 
 test_renewal_preserves_private_key() {
     "${container_engine}" exec --env STEPPATH=/root/.step-server "${addon_name}" step ca renew -f \
-        --exec=/usr/bin/reload-certificates.sh \
+        --exec='/usr/bin/renewal-complete.sh server' \
         /ssl/fullchain.pem /ssl/privkey.pem
     renewed_key="$(file_fingerprint "${addon_name}" /ssl/privkey.pem)"
     readonly renewed_key
@@ -92,16 +105,89 @@ test_renewal_preserves_private_key() {
     readonly renewed_certificate
     test "${renewed_key}" = "${initial_key}"
     test "${renewed_certificate}" != "${initial_certificate}"
+    assert_recovery_pair "${addon_name}" server /ssl/fullchain.pem /ssl/privkey.pem
 }
 
 test_rekey_replaces_private_key() {
     "${container_engine}" exec --env STEPPATH=/root/.step-server "${addon_name}" step ca rekey -f --kty=RSA \
-        --exec=/usr/bin/reload-certificates.sh \
+        --exec='/usr/bin/renewal-complete.sh server' \
         /ssl/fullchain.pem /ssl/privkey.pem
     rekeyed_key="$(file_fingerprint "${addon_name}" /ssl/privkey.pem)"
     readonly rekeyed_key
     test "${rekeyed_key}" != "${renewed_key}"
     verify_certificate "${addon_name}" /ssl/fullchain.pem /ssl/ca.pem
+    assert_recovery_pair "${addon_name}" server /ssl/fullchain.pem /ssl/privkey.pem
+}
+
+assert_recovery_pair() {
+    local container_name="$1" profile="$2" certificate="$3" key="$4"
+    local recovery="/ssl/.step-ca-${profile}-recovery"
+    "${container_engine}" exec "${container_name}" sh -c \
+        "test \"\$(stat -c %a '${recovery}')\" = 700 && test \"\$(stat -c %a '${recovery}/key.pem')\" = 600 && cmp '${certificate}' '${recovery}/certificate.pem' && cmp '${key}' '${recovery}/key.pem'"
+}
+
+restart_server_addon() {
+    "${container_engine}" rm --force "${addon_name}" >/dev/null
+    start_server_addon "${addon_name}"
+}
+
+test_startup_restores_mismatched_active_pair() {
+    "${container_engine}" exec "${addon_name}" sh -c ': > /ssl/fullchain.pem'
+    "${container_engine}" rm --force "${addon_name}" >/dev/null
+    start_server_addon "${addon_name}"
+    wait_for 'active pair restoration' 30 \
+        "${container_engine}" exec "${addon_name}" cmp /ssl/fullchain.pem /ssl/.step-ca-server-recovery/certificate.pem
+    verify_certificate "${addon_name}" /ssl/fullchain.pem /ssl/ca.pem
+}
+
+test_startup_keeps_completed_renewal() {
+    local new_certificate
+    "${container_engine}" exec --env STEPPATH=/root/.step-server "${addon_name}" \
+        step ca renew -f /ssl/fullchain.pem /ssl/privkey.pem
+    new_certificate="$(file_fingerprint "${addon_name}" /ssl/fullchain.pem)"
+    restart_server_addon
+    wait_for 'completed renewal recovery' 30 \
+        "${container_engine}" exec "${addon_name}" cmp /ssl/fullchain.pem /ssl/.step-ca-server-recovery/certificate.pem
+    test "$(file_fingerprint "${addon_name}" /ssl/fullchain.pem)" = "${new_certificate}"
+    wait_for 'missed callback restart handling' 30 \
+        bash -c "${container_engine} logs '${addon_name}' 2>&1 | grep -Fq 'Completed server renewal found during startup'"
+}
+
+test_startup_repairs_partial_recovery() {
+    "${container_engine}" exec "${addon_name}" sh -c ': > /ssl/.step-ca-server-recovery/key.pem'
+    "${container_engine}" rm --force "${addon_name}" >/dev/null
+    start_server_addon "${addon_name}"
+    wait_for 'partial recovery repair' 30 \
+        "${container_engine}" exec "${addon_name}" cmp /ssl/privkey.pem /ssl/.step-ca-server-recovery/key.pem
+    assert_recovery_pair "${addon_name}" server /ssl/fullchain.pem /ssl/privkey.pem
+}
+
+test_startup_completes_pending_issuance() {
+    local new_token
+    new_token="$("${container_engine}" exec "${ca_name}" step ca token "${subject}" \
+        --ca-url https://ca:9000 --root /home/step/certs/root_ca.crt \
+        --password-file /home/step/secrets/password)"
+    "${container_engine}" exec --env STEPPATH=/root/.step-server "${addon_name}" \
+        step ca certificate -f --kty=RSA "--token=${new_token}" "${subject}" \
+        /ssl/.step-ca-server-recovery/pending-certificate.pem \
+        /ssl/.step-ca-server-recovery/pending-key.pem
+    "${container_engine}" exec "${addon_name}" sh -c \
+        ': > /ssl/fullchain.pem; : > /ssl/.step-ca-server-recovery/certificate.pem'
+    "${container_engine}" rm --force "${addon_name}" >/dev/null
+    start_server_addon "${addon_name}"
+    wait_for 'pending issuance installation' 30 \
+        "${container_engine}" exec "${addon_name}" test ! -e /ssl/.step-ca-server-recovery/pending-certificate.pem
+    assert_recovery_pair "${addon_name}" server /ssl/fullchain.pem /ssl/privkey.pem
+    verify_certificate "${addon_name}" /ssl/fullchain.pem /ssl/ca.pem
+}
+
+test_unusable_pairs_reach_token_fallback() {
+    "${container_engine}" exec "${retry_name}" sh -c \
+        ': > /ssl/fullchain.pem; : > /ssl/.step-ca-server-recovery/certificate.pem'
+    "${container_engine}" rm --force "${retry_name}" >/dev/null
+    start_server_addon "${addon_name}"
+    wait_for 'token fallback after unusable pairs' 30 \
+        bash -c "${container_engine} logs '${addon_name}' 2>&1 | grep -Fq 'forcing creation using token'"
 }
 
 test_renewal_daemon_retries_after_backoff() {
@@ -132,9 +218,15 @@ main() {
     run_test 'Initial certificate issuance' test_initial_certificate_issuance
     run_test 'Client certificate is disabled by default' test_client_certificate_disabled_by_default
     run_test 'Client certificate issuance and renewal' test_client_certificate_issuance_and_renewal
+    run_test 'Client startup restores its own pair' test_client_startup_restores_its_own_pair
     run_test 'Renewal preserves the private key' test_renewal_preserves_private_key
     run_test 'Rekey replaces the private key' test_rekey_replaces_private_key
+    run_test 'Startup restores a mismatched active pair' test_startup_restores_mismatched_active_pair
+    run_test 'Startup keeps a completed renewal' test_startup_keeps_completed_renewal
+    run_test 'Startup repairs partial recovery' test_startup_repairs_partial_recovery
+    run_test 'Startup completes pending issuance' test_startup_completes_pending_issuance
     run_test 'Renewal daemon retries after backoff' test_renewal_daemon_retries_after_backoff
+    run_test 'Unusable pairs reach token fallback' test_unusable_pairs_reach_token_fallback
     report_deprecation_notices
 
     echo

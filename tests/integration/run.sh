@@ -84,6 +84,13 @@ certificate_serial() {
     openssl x509 -in "${ssl_dir}/fullchain.pem" -noout -serial | cut -d= -f2
 }
 
+show_container_logs() {
+    echo '--- step-ca-client logs ---' >&2
+    "${container_engine}" logs "${addon_name}" >&2 || true
+    echo '--- step-ca logs ---' >&2
+    "${container_engine}" logs "${ca_name}" >&2 || true
+}
+
 write_options() {
     local issuance_token="$1"
 
@@ -153,8 +160,11 @@ write_options "${token}"
 
 echo 'Checking initial certificate issuance'
 start_addon "${addon_name}"
-wait_for 'initial certificate issuance' 90 \
-    test -s "${ssl_dir}/fullchain.pem"
+if ! wait_for 'initial certificate issuance' 90 \
+    test -s "${ssl_dir}/fullchain.pem"; then
+    show_container_logs
+    exit 1
+fi
 test -s "${ssl_dir}/privkey.pem"
 openssl verify -CAfile "${ssl_dir}/ca.pem" "${ssl_dir}/fullchain.pem" >/dev/null
 

@@ -24,10 +24,35 @@ jobs:
           python3 -m pip install --disable-pip-version-check yamllint==1.38.0
 
       - name: Lint shell scripts
-        run: shellcheck step-ca-client/rootfs/usr/bin/*.sh
+        run: >-
+          shellcheck step-ca-client/rootfs/usr/bin/*.sh
+          step-ca-client/rootfs/etc/s6-overlay/s6-rc.d/renewal-daemon/run
+          step-ca-client/rootfs/etc/s6-overlay/s6-rc.d/renewal-daemon/finish
+          tests/integration/run.sh
 
       - name: Lint YAML
         run: yamllint .
 
       - name: Build the add-on image
         run: docker build --pull=false step-ca-client
+
+  integration:
+    name: Integration (${{ matrix.platform }})
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-26.04
+            platform: linux/amd64
+          - runner: ubuntu-26.04-arm
+            platform: linux/arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # 7.0.1
+
+      - name: Run container integration tests
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: bash tests/integration/run.sh

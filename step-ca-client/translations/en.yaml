@@ -33,6 +33,10 @@ configuration:
     name: Certificate renewal method
     description: >-
       Choose renew to retain the existing private key, or rekey to generate a new private key with each certificate update. Restart the add-on after changing this option.
+  retry_backoff_seconds:
+    name: Renewal retry delay
+    description: >-
+      Seconds to wait before retrying when the renewal daemon exits with an error. The default is 60 seconds.
   restart_ha:
     name: Restart Home Assistant core on certificate renewal
   restart_addons:

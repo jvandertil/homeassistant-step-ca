@@ -23,6 +23,7 @@ options:
   keyfile: privkey.pem
   certfile: fullchain.pem
   renewal_method: renew
+  retry_backoff_seconds: 60
   restart_ha: true
   restart_addons:
     - core_mosquitto
@@ -38,6 +39,7 @@ schema:
   keyfile: str
   certfile: str
   renewal_method: list(renew|rekey)
+  retry_backoff_seconds: int(1,3600)
   restart_ha: bool
   restart_addons:
     - str

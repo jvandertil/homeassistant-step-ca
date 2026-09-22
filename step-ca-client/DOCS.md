@@ -38,6 +38,7 @@ keyfile: privkey.pem
 certfile: fullchain.pem
 key_type: RSA
 renewal_method: renew
+retry_backoff_seconds: 60
 log_level: info
 ```
 
@@ -110,6 +111,13 @@ Restart the add-on after changing this option. The setting is read when the
 renewal daemon starts, so changing the add-on configuration does not alter an
 already running daemon. Rekeying may require certificate-consuming services to
 accept the newly generated key; use `renew` unless key rotation is required.
+
+### Option: `retry_backoff_seconds`
+
+The number of seconds (1–3600, default 60) to wait before restarting the
+renewal daemon after it exits with an error. Increase this when the CA is
+expected to be unavailable for an extended period; reduce it only when more
+frequent retry attempts are acceptable.
 
 ### Option: `restart_ha`
 

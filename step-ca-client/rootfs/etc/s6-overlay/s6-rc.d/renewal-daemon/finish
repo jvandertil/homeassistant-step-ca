@@ -3,11 +3,21 @@
 # ==============================================================================
 # Home Assistant Add-on: step-ca-client
 # ==============================================================================
-declare exit_code
-readonly exit_code_container=$(</run/s6-linux-init-container-results/exitcode)
+exit_code_container=$(</run/s6-linux-init-container-results/exitcode)
+readonly exit_code_container
 readonly exit_code_service="${1}"
 readonly exit_code_signal="${2}"
 readonly service="renewal-daemon"
+retry_backoff_seconds="$(bashio::config 'retry_backoff_seconds')"
+
+if [[ -z "${retry_backoff_seconds}" || "${retry_backoff_seconds}" == 'null' ]]; then
+  # Existing installations might not have the newly introduced option yet.
+  retry_backoff_seconds=60
+elif [[ ! "${retry_backoff_seconds}" =~ ^[1-9][0-9]{0,3}$ ]] || ((10#${retry_backoff_seconds} > 3600)); then
+  bashio::log.warning \
+    "Configuration option 'retry_backoff_seconds' must be an integer between 1 and 3600; using 60"
+  retry_backoff_seconds=60
+fi
 
 bashio::log.info \
   "Service ${service} exited with code ${exit_code_service}" \
@@ -19,7 +29,7 @@ if [[ "${exit_code_service}" -eq 256 ]]; then
   # The signal might be a result of another service crashing. Only
   # overwrite the container exit code if it is not already set.
   if [[ "${exit_code_container}" -eq 0 ]]; then
-    echo $((128 + $exit_code_signal)) > /run/s6-linux-init-container-results/exitcode
+    echo $((128 + exit_code_signal)) > /run/s6-linux-init-container-results/exitcode
   fi
 
   # If the signal is SIGTERM, we should halt the container and take down
@@ -31,9 +41,9 @@ if [[ "${exit_code_service}" -eq 256 ]]; then
 # running so s6 can start the service again after a short backoff.
 elif [[ "${exit_code_service}" -ne 0 ]]; then
   bashio::log.warning \
-    "Service ${service} failed; retrying in 60 seconds" \
+    "Service ${service} failed; retrying in ${retry_backoff_seconds} seconds" \
     "(exit code ${exit_code_service})"
-  sleep 60
+  sleep "${retry_backoff_seconds}"
 
 # The service exited with a zero exit code, which means it exited, let
 # S6 supervision restart it.

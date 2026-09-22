@@ -17,12 +17,14 @@ readonly container_engine="${CONTAINER_ENGINE:-docker}"
 readonly run_id="step-ca-integration-${RANDOM}-${RANDOM}"
 readonly addon_image="${run_id}-addon"
 readonly ca_name="${run_id}-ca"
+readonly supervisor_name="${run_id}-supervisor"
 readonly addon_name="${run_id}-addon-run"
 readonly retry_name="${run_id}-retry-run"
 readonly network_name="${run_id}-network"
 readonly ca_volume="${run_id}-ca-data"
 readonly subject="client.integration.test"
 readonly ca_image="smallstep/step-ca:0.30.2"
+readonly supervisor_image="python:3.13-alpine"
 readonly retry_backoff_seconds="${RETRY_BACKOFF_SECONDS:-1}"
 
 case "${platform}" in
@@ -52,7 +54,7 @@ readonly failing_step="${tmp_dir}/step"
 mkdir "${ssl_dir}"
 
 cleanup() {
-    "${container_engine}" rm --force "${retry_name}" "${addon_name}" "${ca_name}" >/dev/null 2>&1 || true
+    "${container_engine}" rm --force "${retry_name}" "${addon_name}" "${supervisor_name}" "${ca_name}" >/dev/null 2>&1 || true
     "${container_engine}" network rm "${network_name}" >/dev/null 2>&1 || true
     "${container_engine}" volume rm "${ca_volume}" >/dev/null 2>&1 || true
     rm -rf "${tmp_dir}"
@@ -76,17 +78,23 @@ wait_for() {
 }
 
 key_fingerprint() {
-    openssl pkey -in "${ssl_dir}/privkey.pem" -pubout -outform DER |
-        sha256sum | awk '{print $1}'
+    "${container_engine}" exec "${addon_name}" sha256sum /ssl/privkey.pem | awk '{print $1}'
 }
 
-certificate_serial() {
-    openssl x509 -in "${ssl_dir}/fullchain.pem" -noout -serial | cut -d= -f2
+certificate_fingerprint() {
+    "${container_engine}" exec "${addon_name}" sha256sum /ssl/fullchain.pem | awk '{print $1}'
+}
+
+verify_certificate() {
+    "${container_engine}" exec "${addon_name}" step certificate verify \
+        /ssl/fullchain.pem -roots=/ssl/ca.pem
 }
 
 show_container_logs() {
     echo '--- step-ca-client logs ---' >&2
     "${container_engine}" logs "${addon_name}" >&2 || true
+    echo '--- Supervisor mock logs ---' >&2
+    "${container_engine}" logs "${supervisor_name}" >&2 || true
     echo '--- step-ca logs ---' >&2
     "${container_engine}" logs "${ca_name}" >&2 || true
 }
@@ -125,7 +133,21 @@ start_addon() {
         --platform "${platform}" \
         --volume "${options_file}:/data/options.json:ro" \
         --volume "${ssl_dir}:/ssl" \
+        --env SUPERVISOR_TOKEN=integration-test-token \
         "$@" "${addon_image}" >/dev/null
+}
+
+start_supervisor_mock() {
+    "${container_engine}" run --detach --name "${supervisor_name}" --network "${network_name}" \
+        --network-alias supervisor --platform "${platform}" \
+        --env OPTIONS_FILE=/options.json \
+        --volume "${options_file}:/options.json:ro" \
+        --volume "${root_dir}/tests/integration/supervisor_mock.py:/server.py:ro" \
+        "${supervisor_image}" python /server.py >/dev/null
+
+    wait_for 'the Supervisor mock' 30 \
+        "${container_engine}" exec "${supervisor_name}" python -c \
+            "from urllib.request import urlopen; urlopen('http://127.0.0.1/health')"
 }
 
 echo "Building add-on image for ${platform}"
@@ -157,21 +179,22 @@ token="$("${container_engine}" exec "${ca_name}" step ca token "${subject}" \
     --password-file /home/step/secrets/password)"
 readonly token
 write_options "${token}"
+start_supervisor_mock
 
 echo 'Checking initial certificate issuance'
 start_addon "${addon_name}"
 if ! wait_for 'initial certificate issuance' 90 \
-    test -s "${ssl_dir}/fullchain.pem"; then
+    "${container_engine}" exec "${addon_name}" test -s /ssl/fullchain.pem; then
     show_container_logs
     exit 1
 fi
-test -s "${ssl_dir}/privkey.pem"
-openssl verify -CAfile "${ssl_dir}/ca.pem" "${ssl_dir}/fullchain.pem" >/dev/null
+"${container_engine}" exec "${addon_name}" test -s /ssl/privkey.pem
+verify_certificate
 
 initial_key="$(key_fingerprint)"
 readonly initial_key
-initial_serial="$(certificate_serial)"
-readonly initial_serial
+initial_certificate="$(certificate_fingerprint)"
+readonly initial_certificate
 
 echo 'Checking renewal preserves the private key'
 "${container_engine}" exec "${addon_name}" step ca renew -f \
@@ -179,10 +202,10 @@ echo 'Checking renewal preserves the private key'
     /ssl/fullchain.pem /ssl/privkey.pem
 renewed_key="$(key_fingerprint)"
 readonly renewed_key
-renewed_serial="$(certificate_serial)"
-readonly renewed_serial
+renewed_certificate="$(certificate_fingerprint)"
+readonly renewed_certificate
 test "${renewed_key}" = "${initial_key}"
-test "${renewed_serial}" != "${initial_serial}"
+test "${renewed_certificate}" != "${initial_certificate}"
 
 echo 'Checking rekey replaces the private key'
 "${container_engine}" exec "${addon_name}" step ca rekey -f --kty=RSA \
@@ -191,7 +214,7 @@ echo 'Checking rekey replaces the private key'
 rekeyed_key="$(key_fingerprint)"
 readonly rekeyed_key
 test "${rekeyed_key}" != "${renewed_key}"
-openssl verify -CAfile "${ssl_dir}/ca.pem" "${ssl_dir}/fullchain.pem" >/dev/null
+verify_certificate
 
 # The shim deliberately contains literal positional parameters for its own shell.
 # shellcheck disable=SC2016

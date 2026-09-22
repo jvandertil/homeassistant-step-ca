@@ -80,6 +80,13 @@ function profile_recovery_dir() {
     printf '/ssl/.step-ca-%s-recovery' "${profile}"
 }
 
+function prepare_recovery_dir() {
+    local recovery_dir
+    recovery_dir="$(profile_recovery_dir "$1")"
+    mkdir -p "${recovery_dir}"
+    chmod 0700 "${recovery_dir}"
+}
+
 function profile_subject() {
     case "$1" in
         server) bashio::config 'subjects' | head -1 ;;
@@ -191,17 +198,21 @@ function copy_certificate_pair() {
     certificate_pair_matches "${dest_cert}" "${dest_key}"
 }
 
+function save_recovery_pair() {
+    local profile="$1" cert="$2" key="$3" recovery_dir
+    prepare_recovery_dir "${profile}"
+    recovery_dir="$(profile_recovery_dir "${profile}")"
+    copy_certificate_pair "${cert}" "${key}" \
+        "${recovery_dir}/certificate.pem" "${recovery_dir}/key.pem"
+}
+
 function cleanup_recovery_artifacts() {
     local certfile="$1" keyfile="$2" recovery_dir="$3" path
-    local -a artifacts=()
-    shopt -s nullglob
     for path in "${certfile}".rollback.* "${certfile}".tmp.* \
         "${keyfile}".rollback.* "${keyfile}".tmp.* \
         "${recovery_dir}"/*.tmp.*; do
-        artifacts+=("${path}")
+        if [[ -e "${path}" || -L "${path}" ]]; then rm -f -- "${path}"; fi
     done
-    shopt -u nullglob
-    if ((${#artifacts[@]})); then rm -f -- "${artifacts[@]}"; fi
     if [[ ! -s "${recovery_dir}/pending-certificate.pem" ||
         ! -s "${recovery_dir}/pending-key.pem" ]]; then
         rm -f -- "${recovery_dir}/pending-certificate.pem" "${recovery_dir}/pending-key.pem"

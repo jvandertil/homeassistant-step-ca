@@ -35,36 +35,23 @@ case "${RENEWAL_METHOD}" in
 esac
 
 bashio::log.info "Starting ${PROFILE} certificate ${RENEWAL_METHOD} daemon"
-mkdir -p "${RECOVERY_DIR}"
-chmod 0700 "${RECOVERY_DIR}"
+prepare_recovery_dir "${PROFILE}"
 certificate_pair_acceptable "${CERTFILE}" "${KEYFILE}" "${STEPPATH}"
 if ! certificate_pair_acceptable "${RECOVERY_CERT}" "${RECOVERY_KEY}" "${STEPPATH}" ||
     [[ "$(step certificate fingerprint "${CERTFILE}")" != "$(step certificate fingerprint "${RECOVERY_CERT}")" ]]; then
-    copy_certificate_pair "${CERTFILE}" "${KEYFILE}" "${RECOVERY_CERT}" "${RECOVERY_KEY}"
+    save_recovery_pair "${PROFILE}" "${CERTFILE}" "${KEYFILE}"
 fi
-case "${RENEWAL_METHOD}" in
-    renew)
-        STEPPATH="${STEPPATH}" step ca renew \
-            -f \
-            --daemon \
-            --exec="/usr/bin/renewal-complete.sh ${PROFILE}" \
-            "${CERTFILE}" "${KEYFILE}"
-        ;;
-    rekey)
-        case "${KEY_TYPE}" in
-            EC|OKP|RSA)
-                ;;
-            *)
-                bashio::log.fatal "Configuration option for ${PROFILE} key_type must be EC, OKP, or RSA"
-                exit 1
-                ;;
-        esac
+STEP_ARGS=(-f --daemon "--exec=/usr/bin/renewal-complete.sh ${PROFILE}")
+if [[ "${RENEWAL_METHOD}" == rekey ]]; then
+    case "${KEY_TYPE}" in
+        EC|OKP|RSA) ;;
+        *)
+            bashio::log.fatal "Configuration option for ${PROFILE} key_type must be EC, OKP, or RSA"
+            exit 1
+            ;;
+    esac
+    STEP_ARGS+=("--kty=${KEY_TYPE}")
+fi
 
-        STEPPATH="${STEPPATH}" step ca rekey \
-            -f \
-            --kty="${KEY_TYPE}" \
-            --daemon \
-            --exec="/usr/bin/renewal-complete.sh ${PROFILE}" \
-            "${CERTFILE}" "${KEYFILE}"
-        ;;
-esac
+STEPPATH="${STEPPATH}" step ca "${RENEWAL_METHOD}" "${STEP_ARGS[@]}" \
+    "${CERTFILE}" "${KEYFILE}"

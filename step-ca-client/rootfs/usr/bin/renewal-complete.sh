@@ -12,7 +12,6 @@ validate_profile "${PROFILE}"
 CERTFILE="$(profile_ssl_file_path "${PROFILE}" certfile)"
 KEYFILE="$(profile_ssl_file_path "${PROFILE}" keyfile)"
 STEPPATH="$(profile_step_path "${PROFILE}")"
-RECOVERY_DIR="$(profile_recovery_dir "${PROFILE}")"
 
 if ! certificate_pair_acceptable "${CERTFILE}" "${KEYFILE}" "${STEPPATH}"; then
     bashio::log.error "Renewed ${PROFILE} certificate and private key do not verify"
@@ -20,7 +19,4 @@ if ! certificate_pair_acceptable "${CERTFILE}" "${KEYFILE}" "${STEPPATH}"; then
 fi
 
 /usr/bin/reload-certificates.sh "${PROFILE}"
-mkdir -p "${RECOVERY_DIR}"
-chmod 0700 "${RECOVERY_DIR}"
-copy_certificate_pair "${CERTFILE}" "${KEYFILE}" \
-    "${RECOVERY_DIR}/certificate.pem" "${RECOVERY_DIR}/key.pem"
+save_recovery_pair "${PROFILE}" "${CERTFILE}" "${KEYFILE}"

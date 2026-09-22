@@ -7,13 +7,29 @@ set -euo pipefail
 # shellcheck source=tests/integration/harness.sh
 source "$(dirname "${BASH_SOURCE[0]}")/harness.sh"
 
+current_test=''
+
+report_failure() {
+    local exit_code="$?"
+
+    if [[ -n "${current_test}" ]]; then
+        printf '\033[0;31mFAILED\033[0m %s\n' "${current_test}" >&2
+    fi
+    exit "${exit_code}"
+}
+
+trap report_failure ERR
+
 run_test() {
     local name="$1"
     shift
 
     echo
     echo "=== ${name} ==="
+    current_test="${name}"
     "$@"
+    printf '\033[0;32mPASSED\033[0m %s\n' "${name}"
+    current_test=''
 }
 
 test_initial_certificate_issuance() {

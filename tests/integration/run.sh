@@ -85,9 +85,9 @@ certificate_serial() {
 }
 
 write_options() {
-    local token="$1"
+    local issuance_token="$1"
 
-    if [[ ! "${ca_fingerprint}" =~ ^[A-Fa-f0-9]{64}$ ]] || [[ ! "${token}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    if [[ ! "${ca_fingerprint}" =~ ^[A-Fa-f0-9]{64}$ ]] || [[ ! "${issuance_token}" =~ ^[A-Za-z0-9._-]+$ ]]; then
         echo 'Unexpected certificate authority fingerprint or token format' >&2
         return 1
     fi
@@ -96,7 +96,7 @@ write_options() {
         '{' \
         '  "ca_url": "https://ca:9000",' \
         "  \"root_ca_fingerprint\": \"${ca_fingerprint}\"," \
-        "  \"token\": \"${token}\"," \
+        "  \"token\": \"${issuance_token}\"," \
         "  \"subjects\": [\"${subject}\"]," \
         '  "cafile": "ca.pem",' \
         '  "keyfile": "privkey.pem",' \

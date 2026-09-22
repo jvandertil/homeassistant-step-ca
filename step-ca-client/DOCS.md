@@ -118,6 +118,12 @@ Whether or not to restart Home Assistant core.
 Currently there is no way to reload the certificates on the fly, so a
 full restart of Home Assistant Core is required.
 
+Enabling this option requires the add-on's `hassio_role: manager` permission.
+Home Assistant rates that role as a security trade-off because it grants
+extended Supervisor rights. It is retained solely to restart Core after a
+successful certificate update; set `restart_ha: false` if automatic Core
+restarts are not acceptable in your environment.
+
 ### Option: `restart_addons`
 
 List of addons that will be restarted when a certificate is renewed.

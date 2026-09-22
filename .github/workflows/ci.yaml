@@ -28,7 +28,7 @@ jobs:
           shellcheck step-ca-client/rootfs/usr/bin/*.sh
           step-ca-client/rootfs/etc/s6-overlay/s6-rc.d/renewal-daemon/run
           step-ca-client/rootfs/etc/s6-overlay/s6-rc.d/renewal-daemon/finish
-          tests/integration/run.sh
+          tests/integration/*.sh
 
       - name: Lint YAML
         run: yamllint .

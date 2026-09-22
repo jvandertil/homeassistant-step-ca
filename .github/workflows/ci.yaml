@@ -12,16 +12,16 @@ permissions:
 
 jobs:
   validate:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Check out the repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # 7.0.1
 
       - name: Install linters
         run: |
           sudo apt-get update
           sudo apt-get install --yes shellcheck
-          python3 -m pip install --disable-pip-version-check yamllint==1.37.1
+          python3 -m pip install --disable-pip-version-check yamllint==1.38.0
 
       - name: Lint shell scripts
         run: shellcheck step-ca-client/rootfs/usr/bin/*.sh

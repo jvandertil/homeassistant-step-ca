@@ -13,6 +13,7 @@ source /usr/bin/helpers.sh
 set_debug
 
 PROFILE="${1:-server}"
+validate_profile "${PROFILE}"
 bashio::log.info "Setting up Root CA authority for ${PROFILE} certificate profile"
 
 URL="$(profile_ca_url "${PROFILE}")"

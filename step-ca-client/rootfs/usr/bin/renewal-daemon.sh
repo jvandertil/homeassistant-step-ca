@@ -14,12 +14,13 @@ source /usr/bin/helpers.sh
 set_debug
 
 PROFILE="${1:-server}"
+validate_profile "${PROFILE}"
 CERTFILE="$(profile_ssl_file_path "${PROFILE}" certfile)"
 KEYFILE="$(profile_ssl_file_path "${PROFILE}" keyfile)"
 RENEWAL_METHOD="$(profile_config "${PROFILE}" renewal_method)"
 KEY_TYPE="$(profile_config "${PROFILE}" key_type)"
 STEPPATH="$(profile_step_path "${PROFILE}")"
-STAGE_DIR="/tmp/step-ca-${PROFILE}-active"
+STAGE_DIR="$(profile_stage_dir "${PROFILE}" active)"
 STAGE_CERT="${STAGE_DIR}/certificate.pem"
 STAGE_KEY="${STAGE_DIR}/key.pem"
 

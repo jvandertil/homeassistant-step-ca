@@ -15,32 +15,12 @@ function set_debug() {
     export STEPDEBUG
 }
 
-# Return a path below the add-on's mapped SSL directory. Configuration values
-# are user-controlled, so do not allow them to select another file in /ssl.
-function ssl_file_path() {
-    local config_key="$1"
-    local filename
-
-    filename="$(bashio::config "${config_key}")"
-    if [[ ! "${filename}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
-        bashio::log.fatal \
-            "Configuration option '${config_key}' must be a filename without path separators"
-        exit 1
-    fi
-
-    printf '/ssl/%s' "${filename}"
-}
-
-# Profile configuration deliberately maps the existing server options directly,
-# while the optional client identity lives below client_certificate.
-function profile_config_key() {
-    local profile="$1"
-    local field="$2"
-
-    case "${profile}" in
-        server) printf '%s' "${field}" ;;
-        client) printf 'client_certificate.%s' "${field}" ;;
-        *) bashio::log.fatal "Unknown certificate profile '${profile}'"; exit 1 ;;
+# Fail closed whenever a script is called with an unsupported profile. Without
+# this check, an unknown value could accidentally use the server configuration.
+function validate_profile() {
+    case "$1" in
+        server|client) ;;
+        *) bashio::log.fatal "Unknown certificate profile '$1'"; exit 1 ;;
     esac
 }
 
@@ -48,15 +28,22 @@ function profile_config() {
     local profile="$1"
     local field="$2"
 
-    if [[ "${profile}" == client ]]; then
-        # Bashio only addresses top-level options. Decode the nested profile
-        # explicitly so this also works on Supervisor versions without dotted
-        # configuration-key support.
-        bashio::config 'client_certificate' | jq -r --arg field "${field}" \
-            '.[$field] | if type == "array" then .[] else . end'
-    else
-        bashio::config "${field}"
-    fi
+    case "${profile}" in
+        server)
+            bashio::config "${field}"
+            ;;
+        client)
+            # Bashio only addresses top-level options. Decode the nested
+            # profile explicitly so this also works on Supervisor versions
+            # without dotted configuration-key support.
+            bashio::config 'client_certificate' | jq -r --arg field "${field}" \
+                '.[$field] | if type == "array" then .[] else . end'
+            ;;
+        *)
+            bashio::log.fatal "Unknown certificate profile '${profile}'"
+            exit 1
+            ;;
+    esac
 }
 
 function profile_ssl_file_path() {
@@ -64,8 +51,13 @@ function profile_ssl_file_path() {
     local field="$2"
     local config_key filename
 
-    config_key="$(profile_config_key "${profile}" "${field}")"
-    filename="$(bashio::config "${config_key}")"
+    validate_profile "${profile}"
+    if [[ "${profile}" == server ]]; then
+        config_key="${field}"
+    else
+        config_key="client_certificate.${field}"
+    fi
+    filename="$(profile_config "${profile}" "${field}")"
     if [[ ! "${filename}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
         bashio::log.fatal \
             "Configuration option '${config_key}' must be a filename without path separators"
@@ -78,6 +70,38 @@ function profile_step_path() {
     case "$1" in
         server) printf '%s' '/root/.step-server' ;;
         client) printf '%s' '/root/.step-client' ;;
+        *) bashio::log.fatal "Unknown certificate profile '$1'"; exit 1 ;;
+    esac
+}
+
+function profile_stage_dir() {
+    local profile="$1"
+    local purpose="$2"
+
+    validate_profile "${profile}"
+    case "${purpose}" in
+        initial|active) ;;
+        *) bashio::log.fatal "Unknown certificate staging purpose '${purpose}'"; exit 1 ;;
+    esac
+    printf '/tmp/step-ca-%s-%s' "${profile}" "${purpose}"
+}
+
+function profile_subject() {
+    case "$1" in
+        server) bashio::config 'subjects' | head -1 ;;
+        client) profile_config client subject ;;
+        *) bashio::log.fatal "Unknown certificate profile '$1'"; exit 1 ;;
+    esac
+}
+
+function profile_sans() {
+    case "$1" in
+        server) bashio::config 'subjects' ;;
+        client)
+            printf '%s\n%s\n' \
+                "$(profile_config client subject)" \
+                "$(profile_config client sans)"
+            ;;
         *) bashio::log.fatal "Unknown certificate profile '$1'"; exit 1 ;;
     esac
 }

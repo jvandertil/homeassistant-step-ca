@@ -6,12 +6,9 @@ set -e
 source /usr/bin/helpers.sh
 
 PROFILE="${1:-server}"
+validate_profile "${PROFILE}"
 CERTFILE="$(profile_ssl_file_path "${PROFILE}" certfile)"
-if [[ "${PROFILE}" == server ]]; then
-    CONFIG_SANS="$(bashio::config 'subjects' | sed '/^$/d' | sort)"
-else
-    CONFIG_SANS="$(printf '%s\n%s\n' "$(profile_config client subject)" "$(profile_config client sans)" | sed '/^$/d' | sort)"
-fi
+CONFIG_SANS="$(profile_sans "${PROFILE}" | sed '/^$/d' | sort)"
 CERT_SANS="$(step certificate inspect "${CERTFILE}" --format json | jq -r '.names[]' | sort)"
 if [[ "${CONFIG_SANS}" != "${CERT_SANS}" ]]; then
     bashio::log.warning "${PROFILE} certificate SANs do not match its configured subject/SANs"

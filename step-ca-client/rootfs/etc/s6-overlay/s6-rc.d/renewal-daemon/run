@@ -2,27 +2,10 @@
 # shellcheck shell=bash
 # ==============================================================================
 # Home Assistant Add-on: step-ca-client
-# Runs renewal-daemon script
+# Runs the independently supervised server certificate profile.
 # ==============================================================================
 set -e
 
 sleep 2 # give time to logging to flush and not be mixed
 
-# shellcheck source=/dev/null
-source /usr/bin/helpers.sh
-set_debug
-validate_ssl_file_names
-
-bashio::log.info "Starting step-ca-client"
-/usr/bin/root-ca.sh server
-
-CERTFILE="$(profile_ssl_file_path server certfile)"
-if ! step certificate verify \
-    "${CERTFILE}" \
-    -roots="$(profile_step_path server)/certs/root_ca.crt"
-then
-    /usr/bin/create-with-token.sh server
-fi
-
-bashio::log.info "Starting renewal daemon..."
-exec /usr/bin/renewal-daemon.sh server
+exec /usr/bin/run-certificate-profile.sh server

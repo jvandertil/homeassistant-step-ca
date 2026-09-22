@@ -8,10 +8,11 @@ set -e
 source /usr/bin/helpers.sh
 
 PROFILE="${1:-server}"
+validate_profile "${PROFILE}"
 CERTFILE="$(profile_ssl_file_path "${PROFILE}" certfile)"
 KEYFILE="$(profile_ssl_file_path "${PROFILE}" keyfile)"
 STEPPATH="$(profile_step_path "${PROFILE}")"
-STAGE_DIR="/tmp/step-ca-${PROFILE}-active"
+STAGE_DIR="$(profile_stage_dir "${PROFILE}" active)"
 STAGE_CERT="${STAGE_DIR}/certificate.pem"
 STAGE_KEY="${STAGE_DIR}/key.pem"
 

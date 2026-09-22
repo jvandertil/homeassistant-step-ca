@@ -1,5 +1,7 @@
 # Runtime scripts are copied into a Linux image and must retain Unix line endings.
 *.sh text eol=lf
 *.yaml text eol=lf
+.yamllint text eol=lf
+
 step-ca-client/rootfs/etc/s6-overlay/** text eol=lf
 apparmor.txt text eol=lf

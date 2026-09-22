@@ -13,19 +13,16 @@ source /usr/bin/helpers.sh
 set_debug
 
 PROFILE="${1:-server}"
+validate_profile "${PROFILE}"
 bashio::log.warning "Previous ${PROFILE} certificate not valid for renewal, forcing creation using token"
 
 KEYTYPE="$(profile_config "${PROFILE}" key_type)"
 TOKEN="$(profile_config "${PROFILE}" token)"
-if [[ "${PROFILE}" == server ]]; then
-    MAINSUBJECT="$(bashio::config 'subjects' | head -1)"
-else
-    MAINSUBJECT="$(profile_config "${PROFILE}" subject)"
-fi
+MAINSUBJECT="$(profile_subject "${PROFILE}")"
 CERTFILE="$(profile_ssl_file_path "${PROFILE}" certfile)"
 KEYFILE="$(profile_ssl_file_path "${PROFILE}" keyfile)"
 STEPPATH="$(profile_step_path "${PROFILE}")"
-STAGE_DIR="/tmp/step-ca-${PROFILE}-initial"
+STAGE_DIR="$(profile_stage_dir "${PROFILE}" initial)"
 STAGE_CERT="${STAGE_DIR}/certificate.pem"
 STAGE_KEY="${STAGE_DIR}/key.pem"
 mkdir -p "${STAGE_DIR}"

@@ -3,6 +3,21 @@
 Contributions are welcome. For substantial changes, please open an issue first
 so the proposed approach can be discussed.
 
+## Certificate profile runtime
+
+The app has two certificate profiles: `server` always runs, and `client` runs
+when `client_certificate.enabled` is true. Each has its own s6 service, Step CLI
+state, renewal loop, and recovery files. A failure or retry in one profile does
+not stop the other profile's loop.
+
+The service starts `run-certificate-profile.sh` with the profile name. That
+script passes the name to the shared bootstrap, recovery, issuance, and renewal
+scripts. They are separate shell processes, so they cannot share an in-memory
+configuration object. Each reads the settings it needs through `profile_config`
+in `helpers.sh`: server settings are top-level options, while client settings
+are under `client_certificate`. The renewal daemon reads its settings once
+before its loop. Restart the app to apply certificate configuration changes.
+
 ## Issues and feature requests
 
 You've found a bug in the source code, a mistake in the documentation or maybe

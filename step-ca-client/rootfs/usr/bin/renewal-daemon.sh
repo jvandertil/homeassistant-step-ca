@@ -7,6 +7,8 @@ source /usr/bin/helpers.sh
 
 PROFILE="${1:?Certificate profile is required}"
 validate_profile "${PROFILE}"
+# Read this profile's settings once at startup; the loop below reuses them.
+# Restart the add-on to apply certificate configuration changes.
 CERTFILE="$(profile_ssl_file_path "${PROFILE}" certfile)"
 KEYFILE="$(profile_ssl_file_path "${PROFILE}" keyfile)"
 METHOD="$(profile_config "${PROFILE}" renewal_method)"

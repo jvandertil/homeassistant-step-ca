@@ -2,7 +2,8 @@
 # shellcheck shell=bash
 # Bootstrap, issue when necessary, and supervise one certificate profile.
 # Each profile is run by its own s6 service so their renewal failures and
-# backoff cycles remain independent.
+# backoff cycles remain independent. Pass only the profile name to child
+# scripts; each process reads the settings it needs through profile_config.
 set -e
 umask 077
 

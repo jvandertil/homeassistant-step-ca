@@ -24,6 +24,9 @@ function validate_profile() {
     esac
 }
 
+# Shared certificate scripts take a profile name across process boundaries.
+# Server settings are top-level options; client settings live in the nested
+# client_certificate option. Keep that layout difference in this accessor.
 function profile_config() {
     local profile="$1"
     local field="$2"

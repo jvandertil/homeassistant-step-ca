@@ -31,7 +31,7 @@ the same `step-ca-client` slug.
    `git push origin 0.1.0-beta.1`.
 1. Wait for the **Publish release image** workflow. It validates the version,
    pushes `amd64` and `aarch64` images, and publishes the GHCR multi-architecture
-   manifest `ghcr.io/jvandertil/step-ca-client:0.1.0-beta.1`.
+   manifest `ghcr.io/jvandertil/ha-step-ca-client:0.1.0-beta.1`.
 1. Create a GitHub **pre-release** for that existing tag. Its notes are the
    user-facing changelog; it does not build the image.
 
@@ -39,7 +39,7 @@ Never move or reuse a version tag. A Home Assistant installation may already
 be using the image it identifies.
 
 After the first successful publish, verify in GitHub **Packages** that the
-`step-ca-client` container package is public. The Home Assistant Supervisor
+`ha-step-ca-client` container package is public. The Home Assistant Supervisor
 pulls it without GitHub credentials, so it cannot install a private GHCR image.
 
 ## Stable release

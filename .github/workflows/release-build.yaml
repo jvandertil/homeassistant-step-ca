@@ -17,7 +17,8 @@ on:
 
 env:
   ARCHITECTURES: '["amd64", "aarch64"]'
-  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/step-ca-client
+  # Builder actions add the GHCR registry and repository owner themselves.
+  IMAGE_NAME: ha-step-ca-client
 
 permissions:
   contents: read

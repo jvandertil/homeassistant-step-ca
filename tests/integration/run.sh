@@ -46,6 +46,7 @@ test_initial_certificate_issuance() {
     readonly initial_key
     initial_certificate="$(certificate_fingerprint)"
     readonly initial_certificate
+    collect_deprecation_notices "${addon_name}"
 }
 
 test_renewal_preserves_private_key() {
@@ -89,6 +90,7 @@ test_renewal_daemon_retries_after_backoff() {
         bash -c "${container_engine} logs '${retry_name}' 2>&1 | grep -Fq 'failed; retrying in ${retry_backoff_seconds} seconds'"
     wait_for 'renewal daemon restart after backoff' 30 \
         bash -c "test \"\$(${container_engine} logs '${retry_name}' 2>&1 | grep -Fc 'Starting certificate renew daemon')\" -ge 2"
+    collect_deprecation_notices "${retry_name}"
 }
 
 main() {
@@ -98,6 +100,7 @@ main() {
     run_test 'Renewal preserves the private key' test_renewal_preserves_private_key
     run_test 'Rekey replaces the private key' test_rekey_replaces_private_key
     run_test 'Renewal daemon retries after backoff' test_renewal_daemon_retries_after_backoff
+    report_deprecation_notices
 
     echo
     echo "Integration checks passed for ${platform}"

@@ -92,6 +92,25 @@ show_container_logs() {
     "${container_engine}" logs "${ca_name}" >&2 || true
 }
 
+collect_deprecation_notices() {
+    local container_name="$1"
+    local notices
+
+    notices="$("${container_engine}" logs "${container_name}" 2>&1 | \
+        grep --ignore-case --extended-regexp 'deprecated|deprecat|legacy' || true)"
+    if [[ -n "${notices}" ]]; then
+        printf '%s\n%s\n' "--- ${container_name} ---" "${notices}" >>"${deprecation_notices_file}"
+    fi
+}
+
+report_deprecation_notices() {
+    if [[ -s "${deprecation_notices_file}" ]]; then
+        echo
+        echo '=== Deprecation and legacy notices ==='
+        cat "${deprecation_notices_file}"
+    fi
+}
+
 write_options() {
     local issuance_token="$1"
 
@@ -150,6 +169,7 @@ initialize_harness() {
     readonly tmp_dir
     readonly ssl_dir="${tmp_dir}/ssl"
     readonly options_file="${tmp_dir}/options.json"
+    readonly deprecation_notices_file="${tmp_dir}/deprecation-notices.log"
     mkdir "${ssl_dir}"
     trap cleanup EXIT
 

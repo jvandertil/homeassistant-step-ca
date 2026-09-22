@@ -134,10 +134,12 @@ restarts are not acceptable in your environment.
 
 ### Option: `restart_addons`
 
-List of addons that will be restarted when a certificate is renewed.
+List of app IDs that will be restarted when a certificate is renewed. The
+default includes the core Mosquitto broker.
 
-Use the full `slug_addonname` identifier, you can find it on the url of
-the addon. For the core mosquitto broker it will be `core_mosquitto`.
+Use the app ID shown in the app's URL. For the core Mosquitto broker it is
+`core_mosquitto`, which is the default. If a configured app is not installed,
+the restart is skipped with a warning.
 
 ### Option: `log_level`
 

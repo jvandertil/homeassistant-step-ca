@@ -40,9 +40,9 @@ configuration:
   restart_ha:
     name: Restart Home Assistant core on certificate renewal
   restart_addons:
-    name: Addons to restart on certificate renewal
+    name: Apps to restart on certificate renewal
     description: >-
-      Use YAML configuration mode. List of addons that will be restarted when a certificate is renewed.
+      Use YAML configuration mode. List of installed app IDs to restart when a certificate is renewed.
   log_level:
     name: Log level
     description: The amount of logging the add-on should do.

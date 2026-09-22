@@ -4,7 +4,7 @@
 # Home Assistant Add-on: step-ca-client
 #
 # step-ca-client add-on for Home Assistant.
-# This reloads the certificate in the Home Assistant web server and the addons
+# This reloads the certificate in the Home Assistant web server and the apps
 # that use the certificates.
 # Currently there is no way to reload the certificates on the fly, so a
 # full restart of core is required. It is a PR away...
@@ -57,10 +57,14 @@ else
 fi
 
 if [ -n "${ADDONS}" ]; then
-    bashio::log.warning "Restarting specified addons..."
-    while IFS= read -r addon; do
-        (bashio::addon.restart "$addon" && bashio::log.info "Addon $addon restarted") \
-        || bashio::log.error "Failed to restart $addon"
+    bashio::log.warning "Restarting specified apps..."
+    while IFS= read -r app; do
+        if bashio::var.true "$(bashio::app.installed "$app")"; then
+            (bashio::app.restart "$app" && bashio::log.info "App $app restarted") \
+            || bashio::log.error "Failed to restart $app"
+        else
+            bashio::log.warning "Configured app $app is not installed; skipping restart"
+        fi
     done <<< "${ADDONS}"
 fi
 

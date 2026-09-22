@@ -26,11 +26,23 @@ options:
   certfile: fullchain.pem
   renewal_method: renew
   retry_backoff_seconds: 60
+  renewal_check_interval_seconds: 3600
   restart_ha: true
   restart_addons:
     - core_mosquitto
   log_level: info
   key_type: RSA
+  mqtt:
+    enabled: false
+    instance_id: ""
+    host: ""
+    port: 1883
+    username: ""
+    password: ""
+    tls: false
+    ca_file: ""
+    client_cert_file: ""
+    client_key_file: ""
   client_certificate:
     enabled: false
     ca_url: ""
@@ -56,11 +68,23 @@ schema:
   certfile: str
   renewal_method: list(renew|rekey)
   retry_backoff_seconds: int(1,3600)
+  renewal_check_interval_seconds: int(1,86400)
   restart_ha: bool
   restart_addons:
     - str
   log_level: list(trace|debug|info|notice|warning|error|fatal)
   key_type: list(EC|OKP|RSA)
+  mqtt:
+    enabled: bool
+    instance_id: str
+    host: str
+    port: int(1,65535)
+    username: str?
+    password: password
+    tls: bool
+    ca_file: str?
+    client_cert_file: str?
+    client_key_file: str?
   client_certificate:
     enabled: bool
     ca_url: str?

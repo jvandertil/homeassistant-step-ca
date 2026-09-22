@@ -38,7 +38,38 @@ configuration:
   retry_backoff_seconds:
     name: Renewal retry delay
     description: >-
-      Seconds to wait before retrying when the renewal daemon exits with an error. The default is 60 seconds.
+      Seconds to wait before retrying a failed due renewal. The default is 60 seconds.
+  renewal_check_interval_seconds:
+    name: Renewal check interval
+    description: Seconds between healthy certificate checks. The default is 3600.
+  mqtt:
+    name: MQTT certificate telemetry
+    description: Optional discovery and status publishing to your MQTT broker.
+    fields:
+      enabled:
+        name: Enable MQTT telemetry
+      instance_id:
+        name: Instance ID
+        description: Unique letters, digits, underscores, or hyphens for this installation.
+      host:
+        name: Broker hostname
+      port:
+        name: Broker port
+      username:
+        name: Broker username
+      password:
+        name: Broker password
+      tls:
+        name: Verify broker TLS
+      ca_file:
+        name: Broker CA filename
+        description: Optional PEM filename relative to /ssl.
+      client_cert_file:
+        name: Broker client certificate filename
+        description: Optional mTLS PEM filename relative to /ssl.
+      client_key_file:
+        name: Broker client key filename
+        description: Optional mTLS private key filename relative to /ssl.
   restart_ha:
     name: Restart Home Assistant core on certificate renewal
   restart_addons:

@@ -19,6 +19,8 @@ container with Home Assistant's Bashio helpers.
 - Keep the add-on's Supervisor permissions as narrow as possible. Restarting
   Core or other apps requires the `manager` role and is an intentional security
   trade-off.
+- Prefer recovering from failure instead of trying to prevent all possible failures.
+  Certificate renewal has on start recovery from bad issuance, or corrupted cert/key files.
 
 ## Workflow
 

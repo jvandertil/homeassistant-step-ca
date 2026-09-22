@@ -10,6 +10,7 @@ COPY rootfs /
 # Setup base
 RUN apk add --no-cache \
     "step-cli=${STEP_CLI_VERSION}" \
+    python3 \
     && chmod 0755 /usr/bin/*.sh \
     /etc/s6-overlay/s6-rc.d/*/run \
     /etc/s6-overlay/s6-rc.d/*/finish

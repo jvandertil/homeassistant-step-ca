@@ -39,7 +39,19 @@ certfile: fullchain.pem
 key_type: RSA
 renewal_method: renew
 retry_backoff_seconds: 60
+renewal_check_interval_seconds: 3600
 log_level: info
+mqtt:
+  enabled: false
+  instance_id: ""
+  host: ""
+  port: 1883
+  username: ""
+  password: ""
+  tls: false
+  ca_file: ""
+  client_cert_file: ""
+  client_key_file: ""
 client_certificate:
   enabled: false
   # Leave these blank to use the server CA above.
@@ -87,7 +99,8 @@ Each profile keeps a rolling recovery copy in `/ssl/.step-ca-server-recovery`
 or `/ssl/.step-ca-client-recovery`. These hidden directories are mode `0700`;
 their `key.pem` and temporary `pending-key.pem` files are mode `0600` and
 contain copies of the private keys.
-Protect `/ssl` backups accordingly. The add-on renews the active files directly.
+Protect `/ssl` backups accordingly. The add-on stages renewed material and
+verifies the certificate and key before installing them.
 On startup it checks certificate and key fingerprints and the CA chain, then
 repairs an interrupted write from the recovery copy or completes a pending
 token issuance. A valid active renewal completed before its restart callback
@@ -160,16 +173,62 @@ Controls how the certificate is updated automatically:
   update.
 
 Restart the add-on after changing this option. The setting is read when the
-renewal daemon starts, so changing the add-on configuration does not alter an
-already running daemon. Rekeying may require certificate-consuming services to
+renewal loop starts, so changing the add-on configuration does not alter an
+already running loop. Rekeying may require certificate-consuming services to
 accept the newly generated key; use `renew` unless key rotation is required.
 
 ### Option: `retry_backoff_seconds`
 
 The number of seconds (1–3600, default 60) to wait before restarting the
-renewal daemon after it exits with an error. Increase this when the CA is
+renewal attempt after a failure. Increase this when the CA is
 expected to be unavailable for an extended period; reduce it only when more
 frequent retry attempts are acceptable.
+
+### Option: `renewal_check_interval_seconds`
+
+Seconds between healthy checks (1–86400, default 3600). Each profile is
+checked on startup with `step certificate needs-renewal`; the default
+threshold is 66% of its lifetime. Failed due renewals are retried after
+`retry_backoff_seconds`.
+
+### Option: `mqtt`
+
+Optional MQTT Discovery telemetry. Supply a broker and configure Home
+Assistant's MQTT integration separately. Set `enabled: true`, a unique
+`instance_id` for each installation sharing a broker, and `host` and `port`.
+The ID may contain letters, digits, underscores, and hyphens. Username and
+password are optional. Set `tls: true` to verify the broker with system trust,
+or set `ca_file` to a PEM CA filename under `/ssl`. For broker mTLS, set both
+`client_cert_file` and `client_key_file` to PEM filenames under `/ssl`;
+these may be the managed client profile files. TLS paths must be single
+filenames. TLS files require `tls: true`.
+
+Discovery creates one device with server certificate expiration, renewal due,
+renewal failure, and last successful renewal entities. The client profile adds
+the same entities when enabled. Renewal failure turns on after a failed due
+renewal or rekey attempt and clears after success. Status is published every
+five minutes and expires after 15 minutes without updates. The last successful
+renewal has no value until the first successful renewal. MQTT does not change
+certificate operation. When MQTT is disabled, the app attempts to remove its
+retained discovery topics using the current broker settings.
+
+Example expiration alert (replace the entity ID with the discovered one):
+
+```yaml
+automation:
+  - alias: Step CA server certificate expires soon
+    triggers:
+      - trigger: template
+        value_template: >
+          {{ states('sensor.server_expiration') not in ['unknown', 'unavailable']
+             and as_timestamp(states('sensor.server_expiration'), 0)
+                 < as_timestamp(now()) + 86400 }}
+    actions:
+      - action: persistent_notification.create
+        data:
+          title: Certificate expires soon
+          message: Check the step-ca-client renewal status.
+```
 
 ### Option: `restart_ha`
 

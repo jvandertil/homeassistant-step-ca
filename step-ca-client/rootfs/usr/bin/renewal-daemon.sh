@@ -1,57 +1,111 @@
 #!/command/with-contenv bashio
 # shellcheck shell=bash
-# ==============================================================================
-# Home Assistant Add-on: step-ca-client
-#
-# step-ca-client add-on for Home Assistant.
-# This runs the automatic renewal of one certificate profile. Step-cli renews
-# the live pair, and startup recovery repairs interrupted writes.
-# ==============================================================================
 set -e
 umask 077
-
 # shellcheck source=/dev/null
 source /usr/bin/helpers.sh
-set_debug
 
-PROFILE="${1:-server}"
+PROFILE="${1:?Certificate profile is required}"
 validate_profile "${PROFILE}"
 CERTFILE="$(profile_ssl_file_path "${PROFILE}" certfile)"
 KEYFILE="$(profile_ssl_file_path "${PROFILE}" keyfile)"
-RENEWAL_METHOD="$(profile_config "${PROFILE}" renewal_method)"
+METHOD="$(profile_config "${PROFILE}" renewal_method)"
 KEY_TYPE="$(profile_config "${PROFILE}" key_type)"
 STEPPATH="$(profile_step_path "${PROFILE}")"
 RECOVERY_DIR="$(profile_recovery_dir "${PROFILE}")"
-RECOVERY_CERT="${RECOVERY_DIR}/certificate.pem"
-RECOVERY_KEY="${RECOVERY_DIR}/key.pem"
-
-case "${RENEWAL_METHOD}" in
-    renew|rekey)
-        ;;
-    *)
-        bashio::log.fatal "Configuration option for ${PROFILE} renewal_method must be either 'renew' or 'rekey'"
-        exit 1
-        ;;
+PENDING_CERT="${RECOVERY_DIR}/pending-certificate.pem"
+PENDING_KEY="${RECOVERY_DIR}/pending-key.pem"
+STATE_DIR=/run/step-ca-telemetry
+STATE_FILE="${STATE_DIR}/${PROFILE}.state"
+LAST_SUCCESS="/data/step-ca-${PROFILE}-last-renewal"
+mkdir -p "${STATE_DIR}"
+case "${METHOD}" in
+    renew|rekey) ;;
+    *) bashio::log.fatal "Invalid ${PROFILE} renewal_method"; exit 1 ;;
 esac
-
-bashio::log.info "Starting ${PROFILE} certificate ${RENEWAL_METHOD} daemon"
-prepare_recovery_dir "${PROFILE}"
-certificate_pair_acceptable "${CERTFILE}" "${KEYFILE}" "${STEPPATH}"
-if ! certificate_pair_acceptable "${RECOVERY_CERT}" "${RECOVERY_KEY}" "${STEPPATH}" ||
-    [[ "$(step certificate fingerprint "${CERTFILE}")" != "$(step certificate fingerprint "${RECOVERY_CERT}")" ]]; then
-    save_recovery_pair "${PROFILE}" "${CERTFILE}" "${KEYFILE}"
-fi
-STEP_ARGS=(-f --daemon "--exec=/usr/bin/renewal-complete.sh ${PROFILE}")
-if [[ "${RENEWAL_METHOD}" == rekey ]]; then
+if [[ "${METHOD}" == rekey ]]; then
     case "${KEY_TYPE}" in
         EC|OKP|RSA) ;;
+        *) bashio::log.fatal "Invalid ${PROFILE} key_type"; exit 1 ;;
+    esac
+fi
+interval="$(bashio::config 'renewal_check_interval_seconds')"
+if [[ ! "${interval}" =~ ^[1-9][0-9]{0,5}$ ]] || ((10#${interval} > 86400)); then
+    bashio::log.warning 'Invalid renewal_check_interval_seconds; using 3600'
+    interval=3600
+fi
+backoff="$(bashio::config 'retry_backoff_seconds')"
+if [[ ! "${backoff}" =~ ^[1-9][0-9]{0,3}$ ]] || ((10#${backoff} > 3600)); then
+    backoff=60
+fi
+write_state() {
+    local temp
+    temp="$(mktemp "${STATE_FILE}.tmp.XXXXXX")"
+    printf '%s\n%s\n' "${due}" "${failure}" >"${temp}"
+    mv -f -- "${temp}" "${STATE_FILE}"
+}
+due=unknown
+failure=off
+write_state
+prepare_recovery_dir "${PROFILE}"
+certificate_pair_acceptable "${CERTFILE}" "${KEYFILE}" "${STEPPATH}"
+save_recovery_pair "${PROFILE}" "${CERTFILE}" "${KEYFILE}"
+bashio::log.info "Starting ${PROFILE} certificate renewal checks"
+while true; do
+    check_result=0
+    STEPPATH="${STEPPATH}" step certificate needs-renewal "${CERTFILE}" >/dev/null 2>&1 || check_result=$?
+    case "${check_result}" in
+        0) due=on ;;
+        1) due=off ;;
         *)
-            bashio::log.fatal "Configuration option for ${PROFILE} key_type must be EC, OKP, or RSA"
-            exit 1
+            due=unknown
+            write_state
+            bashio::log.warning "${PROFILE} certificate renewal check failed (exit ${check_result})"
+            sleep "${backoff}"
+            continue
             ;;
     esac
-    STEP_ARGS+=("--kty=${KEY_TYPE}")
-fi
-
-STEPPATH="${STEPPATH}" step ca "${RENEWAL_METHOD}" "${STEP_ARGS[@]}" \
-    "${CERTFILE}" "${KEYFILE}"
+    write_state
+    if [[ "${due}" == off ]]; then
+        sleep "${interval}"
+        continue
+    fi
+    rm -f -- "${PENDING_CERT}" "${PENDING_KEY}"
+    result=0
+    if [[ "${METHOD}" == renew ]]; then
+        cp -- "${KEYFILE}" "${PENDING_KEY}"
+        chmod 0600 "${PENDING_KEY}"
+        STEPPATH="${STEPPATH}" step ca renew -f "--out=${PENDING_CERT}" \
+            "${CERTFILE}" "${KEYFILE}" || result=$?
+    else
+        STEPPATH="${STEPPATH}" step ca rekey -f "--kty=${KEY_TYPE}" \
+            "--out-cert=${PENDING_CERT}" "--out-key=${PENDING_KEY}" \
+            "${CERTFILE}" "${KEYFILE}" || result=$?
+    fi
+    if ((result == 0)) && certificate_pair_acceptable "${PENDING_CERT}" "${PENDING_KEY}" "${STEPPATH}"; then
+        if ! copy_certificate_pair "${PENDING_CERT}" "${PENDING_KEY}" "${CERTFILE}" "${KEYFILE}" ||
+            ! certificate_pair_acceptable "${CERTFILE}" "${KEYFILE}" "${STEPPATH}"; then
+            failure=on
+            write_state
+            bashio::log.error "${PROFILE} certificate installation failed; restarting for startup recovery"
+            exit 1
+        fi
+        date -u +'%Y-%m-%dT%H:%M:%SZ' >"${LAST_SUCCESS}"
+        failure=off
+        due=off
+        write_state
+        if /usr/bin/reload-certificates.sh "${PROFILE}"; then
+            save_recovery_pair "${PROFILE}" "${CERTFILE}" "${KEYFILE}"
+            rm -f -- "${PENDING_CERT}" "${PENDING_KEY}"
+        else
+            bashio::log.warning "${PROFILE} consumer reload failed; startup recovery will retry"
+        fi
+        bashio::log.info "${PROFILE} certificate renewed"
+        sleep "${interval}"
+        continue
+    fi
+    failure=on
+    write_state
+    bashio::log.warning "${PROFILE} certificate ${METHOD} failed; retrying in ${backoff} seconds"
+    sleep "${backoff}"
+done

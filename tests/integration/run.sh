@@ -197,6 +197,9 @@ test_renewal_daemon_retries_after_backoff() {
     # shellcheck disable=SC2016
     printf '%s\n' \
         '#!/usr/bin/env bash' \
+        'if [[ "$1" == '\''certificate'\'' && "$2" == '\''needs-renewal'\'' ]]; then' \
+        '    exit 0' \
+        'fi' \
         'if [[ "$1" == '\''ca'\'' && "$2" == '\''renew'\'' ]]; then' \
         '    exit 42' \
         'fi' \
@@ -208,8 +211,33 @@ test_renewal_daemon_retries_after_backoff() {
     wait_for 'renewal failure backoff' 30 \
         bash -c "${container_engine} logs '${retry_name}' 2>&1 | grep -Fq 'failed; retrying in ${retry_backoff_seconds} seconds'"
     wait_for 'renewal daemon restart after backoff' 30 \
-        bash -c "test \"\$(${container_engine} logs '${retry_name}' 2>&1 | grep -Fc 'Starting server certificate renew daemon')\" -ge 2"
+        bash -c "test \"\$(${container_engine} logs '${retry_name}' 2>&1 | grep -Fc 'certificate renew failed; retrying')\" -ge 2"
+    "${container_engine}" exec "${retry_name}" sh -c \
+        "test \"\$(sed -n '2p' /run/step-ca-telemetry/server.state)\" = on"
     collect_deprecation_notices "${retry_name}"
+}
+
+test_staged_due_renewal_preserves_key() {
+    local due_step="${tmp_dir}/due-step" key_before
+    # shellcheck disable=SC2016
+    printf '%s\n' \
+        '#!/usr/bin/env bash' \
+        'if [[ "$1" == '\''certificate'\'' && "$2" == '\''needs-renewal'\'' ]]; then' \
+        '    exit 0' \
+        'fi' \
+        'exec /usr/bin/step "$@"' >"${due_step}"
+    chmod 0755 "${due_step}"
+    key_before="$(file_fingerprint "${addon_name}" /ssl/privkey.pem)"
+    "${container_engine}" rm --force "${addon_name}" >/dev/null
+    start_server_addon "${addon_name}" --volume "${due_step}:/usr/local/bin/step:ro"
+    if ! wait_for 'staged due renewal' 45 \
+        "${container_engine}" exec "${addon_name}" test -s /data/step-ca-server-last-renewal; then
+        "${container_engine}" logs "${addon_name}" >&2 || true
+        return 1
+    fi
+    test "$(file_fingerprint "${addon_name}" /ssl/privkey.pem)" = "${key_before}"
+    assert_recovery_pair "${addon_name}" server /ssl/fullchain.pem /ssl/privkey.pem
+    verify_certificate "${addon_name}" /ssl/fullchain.pem /ssl/ca.pem
 }
 
 main() {
@@ -225,6 +253,7 @@ main() {
     run_test 'Startup keeps a completed renewal' test_startup_keeps_completed_renewal
     run_test 'Startup repairs partial recovery' test_startup_repairs_partial_recovery
     run_test 'Startup completes pending issuance' test_startup_completes_pending_issuance
+    run_test 'Staged due renewal preserves the key' test_staged_due_renewal_preserves_key
     run_test 'Renewal daemon retries after backoff' test_renewal_daemon_retries_after_backoff
     run_test 'Unusable pairs reach token fallback' test_unusable_pairs_reach_token_fallback
     report_deprecation_notices

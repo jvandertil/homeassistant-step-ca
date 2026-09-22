@@ -1,30 +1,99 @@
 ---
-name: Release build
+name: Publish release image
 
+# A pushed version tag is the immutable release input. Create the GitHub release
+# only after this workflow has successfully published the matching image.
 # yamllint disable-line rule:truthy
 on:
-  release:
-    types:
-      - published
+  push:
+    tags:
+      - "*"
   workflow_dispatch:
+    inputs:
+      version:
+        description: Version in step-ca-client/config.yaml to publish
+        required: true
+        type: string
+
+env:
+  ARCHITECTURES: '["amd64", "aarch64"]'
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/step-ca-client
 
 permissions:
   contents: read
 
 jobs:
-  build:
+  init:
+    name: Validate release
     runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      version: ${{ steps.version.outputs.version }}
     steps:
-      - name: Check out the release
+      - name: Check out the tagged source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # 7.0.1
+        with:
+          ref: ${{ github.ref }}
 
-      - name: Build the release image
+      - name: Read and validate app version
+        id: version
         env:
-          RELEASE_VERSION: ${{ github.event.release.tag_name || github.sha }}
+          REQUESTED_VERSION: ${{ inputs.version || github.ref_name }}
         run: |
-          docker build \
-            --pull=false \
-            --build-arg BUILD_REPOSITORY="${{ github.repository }}" \
-            --build-arg BUILD_VERSION="$RELEASE_VERSION" \
-            --tag step-ca-client:"$RELEASE_VERSION" \
-            step-ca-client
+          config_version="$(sed -n 's/^version: *//p' step-ca-client/config.yaml | head -n 1)"
+          if [ -z "$config_version" ] || [ "$config_version" != "$REQUESTED_VERSION" ]; then
+            echo "The tag/manual version must exactly match step-ca-client/config.yaml." >&2
+            echo "config.yaml: ${config_version:-missing}; requested: $REQUESTED_VERSION" >&2
+            exit 1
+          fi
+          echo "version=$config_version" >> "$GITHUB_OUTPUT"
+
+      - name: Create architecture build matrix
+        id: matrix
+        uses: home-assistant/builder/actions/prepare-multi-arch-matrix@2026.06.0
+        with:
+          architectures: ${{ env.ARCHITECTURES }}
+          image-name: ${{ env.IMAGE_NAME }}
+
+  build:
+    name: Build ${{ matrix.arch }} image
+    needs: init
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.init.outputs.matrix) }}
+    steps:
+      - name: Check out the tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # 7.0.1
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Build and publish architecture image
+        uses: home-assistant/builder/actions/build-image@2026.06.0
+        with:
+          arch: ${{ matrix.arch }}
+          container-registry-password: ${{ secrets.GITHUB_TOKEN }}
+          image: ${{ matrix.image }}
+          image-tags: ${{ needs.init.outputs.version }}
+          push: "true"
+          version: ${{ needs.init.outputs.version }}
+
+  manifest:
+    name: Publish multi-architecture image
+    needs: [init, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      id-token: write
+      packages: write
+    steps:
+      - name: Publish multi-architecture manifest
+        uses: home-assistant/builder/actions/publish-multi-arch-manifest@2026.06.0
+        with:
+          architectures: ${{ env.ARCHITECTURES }}
+          container-registry-password: ${{ secrets.GITHUB_TOKEN }}
+          image-name: ${{ env.IMAGE_NAME }}
+          image-tags: ${{ needs.init.outputs.version }}

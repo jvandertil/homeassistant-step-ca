@@ -1,7 +1,6 @@
-ARG BUILD_FROM=ghcr.io/hassio-addons/base:stable
 ARG STEP_CLI_VERSION=0.30.6-r1
 # hadolint ignore=DL3006
-FROM ${BUILD_FROM}
+FROM ghcr.io/hassio-addons/base:stable
 
 ARG STEP_CLI_VERSION
 
@@ -26,7 +25,7 @@ LABEL \
     io.hass.name="${BUILD_NAME}" \
     io.hass.description="${BUILD_DESCRIPTION}" \
     io.hass.arch="${BUILD_ARCH}" \
-    io.hass.type="addon" \
+    io.hass.type="app" \
     io.hass.version=${BUILD_VERSION} \
     maintainer="jvandertil" \
     org.opencontainers.image.title="${BUILD_NAME}" \

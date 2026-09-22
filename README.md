@@ -43,6 +43,17 @@ compared to installing any other Home Assistant add-on.
 5. Start the "step-ca-client" add-on.
 6. Check the logs of the "step-ca-client" add-on to see it in action.
 
+## Testing prereleases
+
+Prerelease builds are published from the `develop` branch. To add that channel
+in Home Assistant, add the repository URL with `#develop` appended:
+
+`https://github.com/jvandertil/homeassistant-step-ca#develop`
+
+Use either the stable or prerelease repository on one Home Assistant instance;
+both provide the same app slug. A prerelease is published to GHCR when its
+version tag is pushed. See [the release process](RELEASING.md) for details.
+
 ## Contributing
 
 This is an active open-source project. We are always open to people who want to

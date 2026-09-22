@@ -8,6 +8,7 @@ set -e
 
 sleep 2 # give time to logging to flush and not be mixed
 
+# shellcheck source=/dev/null
 source /usr/bin/helpers.sh
 set_debug
 validate_ssl_file_names

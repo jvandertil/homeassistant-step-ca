@@ -128,6 +128,7 @@ test "$("${container_engine}" image inspect --format '{{.Architecture}}' "${addo
 "${container_engine}" network create "${network_name}" >/dev/null
 "${container_engine}" volume create "${ca_volume}" >/dev/null
 "${container_engine}" run --detach --name "${ca_name}" --network "${network_name}" \
+    --network-alias ca \
     --platform "${platform}" --volume "${ca_volume}:/home/step" \
     --env DOCKER_STEPCA_INIT_NAME=Integration-CA \
     --env DOCKER_STEPCA_INIT_DNS_NAMES=ca \

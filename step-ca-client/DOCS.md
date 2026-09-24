@@ -105,12 +105,13 @@ contain copies of the private keys.
 Protect `/ssl` backups accordingly. The add-on stages renewed material and
 verifies the certificate and key before installing them. Installation happens
 before any configured consumer restart is requested.
-On startup it checks certificate and key fingerprints and the CA chain, then
-installs a valid pending issuance even if the previous active pair is still
-valid. It also repairs an interrupted write from the recovery copy. A valid
-active renewal completed before its restart callback is kept and its consumers
-are restarted. If all available certificates are expired or invalid, issue a
-new one-time token manually and restart the add-on.
+On startup, a matching certificate and key with a trusted chain and more than
+10 seconds of lifetime remaining enter the normal renewal loop immediately.
+The loop checks whether renewal is due and retries a failed attempt automatically.
+Only an unacceptable active pair triggers recovery: the app installs a valid
+pending issuance or restores the rolling recovery copy. If neither is usable,
+it tries token issuance. If all available certificates are expired or invalid,
+issue a new one-time token manually and restart the add-on.
 
 ### Option: `ca_url`
 

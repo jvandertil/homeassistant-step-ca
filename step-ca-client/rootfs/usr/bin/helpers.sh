@@ -250,8 +250,24 @@ function certificate_pair_matches() {
     [[ -n "${cert_fingerprint}" && "${cert_fingerprint}" == "${key_fingerprint}" ]]
 }
 
+# Check that the certificate chain verifies against the trusted root
+# and that the certificate is not expired or expiring within 10 seconds.
+# Arguments:
+#   $1: Certificate file path.
+#   $2: step-cli configuration directory containing the trusted root.
+# Returns:
+#   0 when the certificate is valid and not expiring; nonzero otherwise.
+function certificate_pair_valid() {
+    local cert="$1" step_path="$2" renewal_status=0
+    [[ -s "${cert}" ]] || return 1
+
+    step certificate verify "${cert}" -roots="${step_path}/certs/root_ca.crt" >/dev/null 2>&1 || return 1
+    step certificate needs-renewal "${cert}" --expires-in=10s >/dev/null 2>&1 || renewal_status=$?
+    [[ ${renewal_status} -eq 1 ]]
+}
+
 # Check that a certificate and key match and that the certificate chain
-# verifies.
+# verifies and has more than 10 seconds of lifetime remaining.
 # Arguments:
 #   $1: Certificate file path.
 #   $2: Private key file path.
@@ -261,7 +277,7 @@ function certificate_pair_matches() {
 function certificate_pair_acceptable() {
     local cert="$1" key="$2" step_path="$3"
     certificate_pair_matches "${cert}" "${key}" &&
-        step certificate verify "${cert}" -roots="${step_path}/certs/root_ca.crt" >/dev/null 2>&1
+        certificate_pair_valid "${cert}" "${step_path}"
 }
 
 # Copy a matching certificate and key through destination-local temporary files.

@@ -30,10 +30,13 @@ bashio::log.info "Starting ${PROFILE} certificate profile"
 CERTFILE="$(profile_ssl_file_path "${PROFILE}" certfile)"
 KEYFILE="$(profile_ssl_file_path "${PROFILE}" keyfile)"
 STEPPATH="$(profile_step_path "${PROFILE}")"
-/usr/bin/recover-certificate-profile.sh "${PROFILE}"
 
 if ! certificate_pair_acceptable "${CERTFILE}" "${KEYFILE}" "${STEPPATH}"; then
-    /usr/bin/create-with-token.sh "${PROFILE}"
+    /usr/bin/recover-certificate-profile.sh "${PROFILE}"
+
+    if ! certificate_pair_acceptable "${CERTFILE}" "${KEYFILE}" "${STEPPATH}"; then
+        /usr/bin/create-with-token.sh "${PROFILE}"
+    fi
 fi
 
 exec /usr/bin/renewal-daemon.sh "${PROFILE}"

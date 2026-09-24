@@ -249,8 +249,7 @@ test_startup_restores_mismatched_active_pair() {
     verify_certificate "${addon_name}" /ssl/fullchain.pem /ssl/ca.pem
 }
 
-# Confirm startup retains a renewed live certificate after its callback is
-# missed.
+# Confirm an acceptable live certificate skips pending issuance recovery.
 # Globals:
 #   addon_name
 #   container_engine
@@ -258,17 +257,23 @@ test_startup_restores_mismatched_active_pair() {
 #   None
 # Returns:
 #   0 when startup retains the renewed certificate; nonzero otherwise.
-test_startup_keeps_completed_renewal() {
+test_startup_skips_recovery_for_valid_pair() {
     local new_certificate
     "${container_engine}" exec --env STEPPATH=/root/.step-server "${addon_name}" \
         step ca renew -f /ssl/fullchain.pem /ssl/privkey.pem
     new_certificate="$(file_fingerprint "${addon_name}" /ssl/fullchain.pem)"
+    "${container_engine}" exec "${addon_name}" cp /ssl/fullchain.pem \
+        /ssl/.step-ca-server-recovery/pending-certificate.pem
+    "${container_engine}" exec "${addon_name}" cp /ssl/privkey.pem \
+        /ssl/.step-ca-server-recovery/pending-key.pem
     restart_server_addon
-    wait_for 'completed renewal recovery' 30 \
+    wait_for 'normal renewal startup' 30 \
+        bash -c "${container_engine} logs '${addon_name}' 2>&1 | grep -Fq 'Starting server certificate renewal checks'"
+    wait_for 'recovery copy refresh' 30 \
         "${container_engine}" exec "${addon_name}" cmp /ssl/fullchain.pem /ssl/.step-ca-server-recovery/certificate.pem
     test "$(file_fingerprint "${addon_name}" /ssl/fullchain.pem)" = "${new_certificate}"
-    wait_for 'missed callback restart handling' 30 \
-        bash -c "${container_engine} logs '${addon_name}' 2>&1 | grep -Fq 'Completed server renewal found during startup'"
+    "${container_engine}" exec "${addon_name}" test -s \
+        /ssl/.step-ca-server-recovery/pending-certificate.pem
 }
 
 # Confirm startup repairs a partial recovery copy from the active certificate
@@ -350,13 +355,16 @@ test_unusable_pairs_reach_token_fallback() {
 # Returns:
 #   0 when renewal failure triggers the configured backoff; nonzero otherwise.
 test_renewal_daemon_retries_after_backoff() {
-    local failing_step="${tmp_dir}/step"
+    local failing_step="${tmp_dir}/step" certificate_before
 
     # The shim deliberately contains literal positional parameters for its own shell.
     # shellcheck disable=SC2016
     printf '%s\n' \
         '#!/usr/bin/env bash' \
         'if [[ "$1" == '\''certificate'\'' && "$2" == '\''needs-renewal'\'' ]]; then' \
+        '    if [[ "$4" == '\''--expires-in=10s'\'' ]]; then' \
+        '        exec /usr/bin/step "$@"' \
+        '    fi' \
         '    exit 0' \
         'fi' \
         'if [[ "$1" == '\''ca'\'' && "$2" == '\''renew'\'' ]]; then' \
@@ -373,6 +381,13 @@ test_renewal_daemon_retries_after_backoff() {
         bash -c "test \"\$(${container_engine} logs '${retry_name}' 2>&1 | grep -Fc 'certificate renew failed; retrying')\" -ge 2"
     "${container_engine}" exec "${retry_name}" sh -c \
         "test \"\$(sed -n '2p' /run/step-ca-telemetry/server.state)\" = on"
+    certificate_before="$(file_fingerprint "${retry_name}" /ssl/fullchain.pem)"
+    "${container_engine}" rm --force "${retry_name}" >/dev/null
+    start_server_addon "${retry_name}" --volume "${failing_step}:/usr/local/bin/step:ro"
+    wait_for 'renewal retry after restart' 30 \
+        bash -c "${container_engine} logs '${retry_name}' 2>&1 | grep -Fq 'certificate renew failed; retrying'"
+    test "$(file_fingerprint "${retry_name}" /ssl/fullchain.pem)" = "${certificate_before}"
+    "${container_engine}" exec "${retry_name}" test -s /ssl/privkey.pem
     collect_deprecation_notices "${retry_name}"
 }
 
@@ -439,7 +454,7 @@ main() {
     run_test 'Renewal preserves the private key' test_renewal_preserves_private_key
     run_test 'Rekey replaces the private key' test_rekey_replaces_private_key
     run_test 'Startup restores a mismatched active pair' test_startup_restores_mismatched_active_pair
-    run_test 'Startup keeps a completed renewal' test_startup_keeps_completed_renewal
+    run_test 'Startup skips recovery for a valid pair' test_startup_skips_recovery_for_valid_pair
     run_test 'Startup repairs partial recovery' test_startup_repairs_partial_recovery
     run_test 'Startup completes pending issuance' test_startup_completes_pending_issuance
     run_test 'Configured threshold stages renewal and preserves the key' test_configured_threshold_stages_renewal

@@ -9,6 +9,13 @@ source "$(dirname "${BASH_SOURCE[0]}")/harness.sh"
 
 current_test=''
 
+# Report the failing test name and exit with the error that triggered ERR.
+# Globals:
+#   current_test (read)
+# Arguments:
+#   None
+# Outputs:
+#   Writes the failed test name to stderr when one is running.
 report_failure() {
     local exit_code="$?"
 
@@ -20,6 +27,16 @@ report_failure() {
 
 trap report_failure ERR
 
+# Run a named test function and print its result.
+# Globals:
+#   current_test
+# Arguments:
+#   $1: Display name for the test.
+#   $2 and later: Test function and its arguments.
+# Outputs:
+#   Writes the test name and pass status to stdout.
+# Returns:
+#   The test function's status.
 run_test() {
     local name="$1"
     shift
@@ -32,6 +49,17 @@ run_test() {
     current_test=''
 }
 
+# Issue the initial server certificate and verify its chain.
+# Globals:
+#   addon_name
+#   container_engine
+#   initial_certificate (set)
+#   initial_key (set)
+# Arguments:
+#   None
+# Returns:
+#   0 when the pair is issued and the certificate chain verifies; nonzero
+#   otherwise.
 test_initial_certificate_issuance() {
     start_server_addon "${addon_name}"
     if ! wait_for 'initial certificate issuance' 90 \
@@ -49,6 +77,14 @@ test_initial_certificate_issuance() {
     collect_deprecation_notices "${addon_name}"
 }
 
+# Confirm the disabled client profile creates no client certificate files.
+# Globals:
+#   addon_name
+#   container_engine
+# Arguments:
+#   None
+# Returns:
+#   0 when the disabled profile creates no client files; nonzero otherwise.
 test_client_certificate_disabled_by_default() {
     # The default options deliberately omit a client identity. Its separate s6
     # service must remain dormant and must not create default client key files.
@@ -58,6 +94,20 @@ test_client_certificate_disabled_by_default() {
     "${container_engine}" exec "${addon_name}" test ! -e /ssl/client-fullchain.pem
 }
 
+# Issue and renew a client certificate, preserving its key and recovery pair.
+# Globals:
+#   client_name
+#   client_server_subject
+#   client_subject
+#   client_san
+#   container_engine
+#   client_key_before (set)
+#   client_key_after (set)
+# Arguments:
+#   None
+# Returns:
+#   0 when issuance, renewal, and key preservation checks pass; nonzero
+#   otherwise.
 test_client_certificate_issuance_and_renewal() {
     start_client_addon
     if ! wait_for 'client certificate issuance' 90 \
@@ -84,6 +134,14 @@ test_client_certificate_issuance_and_renewal() {
     assert_recovery_pair "${client_name}" server /ssl/fullchain.pem /ssl/privkey.pem
 }
 
+# Confirm startup restores the client pair without changing the server pair.
+# Globals:
+#   client_name
+#   container_engine
+# Arguments:
+#   None
+# Returns:
+#   0 when startup restores the client pair; nonzero otherwise.
 test_client_startup_restores_its_own_pair() {
     "${container_engine}" exec "${client_name}" sh -c ': > /ssl/client-fullchain.pem'
     "${container_engine}" rm --force "${client_name}" >/dev/null
@@ -95,6 +153,19 @@ test_client_startup_restores_its_own_pair() {
     assert_recovery_pair "${client_name}" server /ssl/fullchain.pem /ssl/privkey.pem
 }
 
+# Confirm normal renewal changes the certificate while preserving its key.
+# Globals:
+#   addon_name
+#   container_engine
+#   initial_certificate
+#   initial_key
+#   renewed_certificate (set)
+#   renewed_key (set)
+# Arguments:
+#   None
+# Returns:
+#   0 when renewal changes the certificate and preserves the key; nonzero
+#   otherwise.
 test_renewal_preserves_private_key() {
     "${container_engine}" exec --env STEPPATH=/root/.step-server "${addon_name}" step ca renew -f \
         --exec='/usr/bin/renewal-complete.sh server' \
@@ -108,6 +179,17 @@ test_renewal_preserves_private_key() {
     assert_recovery_pair "${addon_name}" server /ssl/fullchain.pem /ssl/privkey.pem
 }
 
+# Confirm rekeying replaces the private key and leaves a valid certificate.
+# Globals:
+#   addon_name
+#   container_engine
+#   renewed_key
+#   rekeyed_key (set)
+# Arguments:
+#   None
+# Returns:
+#   0 when rekeying replaces the key and verifies the certificate; nonzero
+#   otherwise.
 test_rekey_replaces_private_key() {
     "${container_engine}" exec --env STEPPATH=/root/.step-server "${addon_name}" step ca rekey -f --kty=RSA \
         --exec='/usr/bin/renewal-complete.sh server' \
@@ -119,6 +201,17 @@ test_rekey_replaces_private_key() {
     assert_recovery_pair "${addon_name}" server /ssl/fullchain.pem /ssl/privkey.pem
 }
 
+# Check recovery directory permissions and compare its saved pair to the
+# active pair.
+# Globals:
+#   container_engine
+# Arguments:
+#   $1: Container name.
+#   $2: Certificate profile name.
+#   $3: Active certificate path inside the container.
+#   $4: Active private key path inside the container.
+# Returns:
+#   0 when permissions and both file comparisons pass; nonzero otherwise.
 assert_recovery_pair() {
     local container_name="$1" profile="$2" certificate="$3" key="$4"
     local recovery="/ssl/.step-ca-${profile}-recovery"
@@ -126,11 +219,27 @@ assert_recovery_pair() {
         "test \"\$(stat -c %a '${recovery}')\" = 700 && test \"\$(stat -c %a '${recovery}/key.pem')\" = 600 && cmp '${certificate}' '${recovery}/certificate.pem' && cmp '${key}' '${recovery}/key.pem'"
 }
 
+# Restart the server add-on container using the shared server configuration.
+# Globals:
+#   addon_name
+#   container_engine
+#   options_file
+#   ssl_dir
+# Arguments:
+#   None
 restart_server_addon() {
     "${container_engine}" rm --force "${addon_name}" >/dev/null
     start_server_addon "${addon_name}"
 }
 
+# Confirm startup restores the recovery pair when the active pair is damaged.
+# Globals:
+#   addon_name
+#   container_engine
+# Arguments:
+#   None
+# Returns:
+#   0 when startup restores the active pair; nonzero otherwise.
 test_startup_restores_mismatched_active_pair() {
     "${container_engine}" exec "${addon_name}" sh -c ': > /ssl/fullchain.pem'
     "${container_engine}" rm --force "${addon_name}" >/dev/null
@@ -140,6 +249,15 @@ test_startup_restores_mismatched_active_pair() {
     verify_certificate "${addon_name}" /ssl/fullchain.pem /ssl/ca.pem
 }
 
+# Confirm startup retains a renewed live certificate after its callback is
+# missed.
+# Globals:
+#   addon_name
+#   container_engine
+# Arguments:
+#   None
+# Returns:
+#   0 when startup retains the renewed certificate; nonzero otherwise.
 test_startup_keeps_completed_renewal() {
     local new_certificate
     "${container_engine}" exec --env STEPPATH=/root/.step-server "${addon_name}" \
@@ -153,6 +271,15 @@ test_startup_keeps_completed_renewal() {
         bash -c "${container_engine} logs '${addon_name}' 2>&1 | grep -Fq 'Completed server renewal found during startup'"
 }
 
+# Confirm startup repairs a partial recovery copy from the active certificate
+# pair.
+# Globals:
+#   addon_name
+#   container_engine
+# Arguments:
+#   None
+# Returns:
+#   0 when startup repairs the recovery pair; nonzero otherwise.
 test_startup_repairs_partial_recovery() {
     "${container_engine}" exec "${addon_name}" sh -c ': > /ssl/.step-ca-server-recovery/key.pem'
     "${container_engine}" rm --force "${addon_name}" >/dev/null
@@ -162,6 +289,16 @@ test_startup_repairs_partial_recovery() {
     assert_recovery_pair "${addon_name}" server /ssl/fullchain.pem /ssl/privkey.pem
 }
 
+# Confirm startup installs a valid pending issuance after an interrupted copy.
+# Globals:
+#   addon_name
+#   ca_name
+#   container_engine
+#   subject
+# Arguments:
+#   None
+# Returns:
+#   0 when startup installs the pending pair; nonzero otherwise.
 test_startup_completes_pending_issuance() {
     local new_token
     new_token="$("${container_engine}" exec "${ca_name}" step ca token "${subject}" \
@@ -181,6 +318,15 @@ test_startup_completes_pending_issuance() {
     verify_certificate "${addon_name}" /ssl/fullchain.pem /ssl/ca.pem
 }
 
+# Confirm unusable active and recovery pairs fall back to token issuance.
+# Globals:
+#   addon_name
+#   container_engine
+#   retry_name
+# Arguments:
+#   None
+# Returns:
+#   0 when token fallback starts; nonzero otherwise.
 test_unusable_pairs_reach_token_fallback() {
     "${container_engine}" exec "${retry_name}" sh -c \
         ': > /ssl/fullchain.pem; : > /ssl/.step-ca-server-recovery/certificate.pem'
@@ -190,6 +336,19 @@ test_unusable_pairs_reach_token_fallback() {
         bash -c "${container_engine} logs '${addon_name}' 2>&1 | grep -Fq 'forcing creation using token'"
 }
 
+# Confirm renewal failures set failure state and retry after the configured
+# delay.
+# Globals:
+#   addon_name
+#   container_engine
+#   retry_backoff_seconds
+#   retry_name
+#   tmp_dir
+#   deprecation_notices_file
+# Arguments:
+#   None
+# Returns:
+#   0 when renewal failure triggers the configured backoff; nonzero otherwise.
 test_renewal_daemon_retries_after_backoff() {
     local failing_step="${tmp_dir}/step"
 
@@ -217,6 +376,17 @@ test_renewal_daemon_retries_after_backoff() {
     collect_deprecation_notices "${retry_name}"
 }
 
+# Confirm a configured renewal threshold stages renewal without replacing the
+# key.
+# Globals:
+#   addon_name
+#   container_engine
+#   options_file
+#   tmp_dir
+# Arguments:
+#   None
+# Returns:
+#   0 when threshold renewal preserves the key; nonzero otherwise.
 test_configured_threshold_stages_renewal() {
     local due_step="${tmp_dir}/due-step" key_before certificate_before
     local updated_options="${tmp_dir}/threshold-options.json"
@@ -250,6 +420,15 @@ test_configured_threshold_stages_renewal() {
     cat "${updated_options}" >"${options_file}"
 }
 
+# Initialize the integration environment, run all cases, and print the summary.
+# Globals:
+#   platform
+# Arguments:
+#   None
+# Outputs:
+#   Writes test names, deprecation notices, and the final status to stdout.
+# Returns:
+#   0 after all integration checks pass.
 main() {
     initialize_harness
 

@@ -32,6 +32,15 @@ readonly retry_backoff_seconds="${RETRY_BACKOFF_SECONDS:-1}"
 readonly server_supervisor_token="integration-test-server-token"
 readonly client_supervisor_token="integration-test-client-token"
 
+# Validate the selected platform, container engine, and retry delay.
+# Globals:
+#   platform
+#   container_engine
+#   retry_backoff_seconds
+# Arguments:
+#   None
+# Returns:
+#   0 when configuration is valid; 2 when a setting is unsupported.
 validate_harness_configuration() {
     case "${platform}" in
         linux/amd64|linux/arm64)
@@ -53,6 +62,20 @@ validate_harness_configuration() {
     fi
 }
 
+# Remove the disposable containers, network, volume, and temporary files.
+# Globals:
+#   addon_image
+#   addon_name
+#   ca_name
+#   ca_volume
+#   client_name
+#   container_engine
+#   network_name
+#   retry_name
+#   supervisor_name
+#   tmp_dir
+# Arguments:
+#   None
 cleanup() {
     "${container_engine}" rm --force "${retry_name}" "${client_name}" "${addon_name}" "${supervisor_name}" "${ca_name}" >/dev/null 2>&1 || true
     "${container_engine}" network rm "${network_name}" >/dev/null 2>&1 || true
@@ -63,6 +86,15 @@ cleanup() {
     rm -rf "${tmp_dir}"
 }
 
+# Run a command repeatedly until it succeeds or the attempt limit is reached.
+# Globals:
+#   attempt (modified)
+# Arguments:
+#   $1: Description used in the timeout message.
+#   $2: Maximum number of attempts.
+#   $3 and later: Command and arguments to run for each attempt.
+# Returns:
+#   0 when the command succeeds; 1 when all attempts time out.
 wait_for() {
     local description="$1"
     local attempts="$2"
@@ -79,6 +111,14 @@ wait_for() {
     return 1
 }
 
+# Print the SHA-256 digest of a file in a disposable container.
+# Globals:
+#   container_engine
+# Arguments:
+#   $1: Container name.
+#   $2: File path inside the container.
+# Outputs:
+#   Writes the digest to stdout.
 file_fingerprint() {
     local container_name="$1"
     local path="$2"
@@ -86,6 +126,15 @@ file_fingerprint() {
     "${container_engine}" exec "${container_name}" sha256sum "${path}" | awk '{print $1}'
 }
 
+# Verify a certificate against a root certificate inside a container.
+# Globals:
+#   container_engine
+# Arguments:
+#   $1: Container name.
+#   $2: Certificate path inside the container.
+#   $3: Root certificate path inside the container.
+# Returns:
+#   The exit status from step certificate verify.
 verify_certificate() {
     local container_name="$1"
     local certificate_path="$2"
@@ -95,6 +144,16 @@ verify_certificate() {
         "${certificate_path}" -roots="${root_path}"
 }
 
+# Print logs from the add-on, Supervisor mock, and certificate authority.
+# Globals:
+#   addon_name
+#   ca_name
+#   container_engine
+#   supervisor_name
+# Arguments:
+#   None
+# Outputs:
+#   Writes container labels and logs to stderr.
 show_container_logs() {
     echo '--- step-ca-client logs ---' >&2
     "${container_engine}" logs "${addon_name}" >&2 || true
@@ -104,6 +163,12 @@ show_container_logs() {
     "${container_engine}" logs "${ca_name}" >&2 || true
 }
 
+# Append matching deprecation messages from a container to the report file.
+# Globals:
+#   container_engine
+#   deprecation_notices_file
+# Arguments:
+#   $1: Container name.
 collect_deprecation_notices() {
     local container_name="$1"
     local notices
@@ -115,6 +180,13 @@ collect_deprecation_notices() {
     fi
 }
 
+# Print the accumulated deprecation report when it contains any messages.
+# Globals:
+#   deprecation_notices_file
+# Arguments:
+#   None
+# Outputs:
+#   Writes the report to stdout when it contains messages.
 report_deprecation_notices() {
     if [[ -s "${deprecation_notices_file}" ]]; then
         echo
@@ -123,6 +195,16 @@ report_deprecation_notices() {
     fi
 }
 
+# Write server-profile options to the disposable add-on's options file.
+# Globals:
+#   ca_fingerprint
+#   options_file
+#   retry_backoff_seconds
+#   subject
+# Arguments:
+#   $1: Server certificate issuance token.
+# Returns:
+#   0 when the options are written; nonzero if input validation fails.
 write_options() {
     local issuance_token="$1"
 
@@ -150,6 +232,17 @@ write_options() {
         '}' >"${options_file}"
 }
 
+# Write server and client profile options to the client integration file.
+# Globals:
+#   ca_fingerprint
+#   client_options_file
+#   client_san
+#   client_subject
+#   client_server_subject
+#   retry_backoff_seconds
+# Arguments:
+#   $1: Server certificate issuance token.
+#   $2: Client certificate issuance token.
 write_client_options() {
     local server_token="$1"
     local client_issuance_token="$2"
@@ -189,6 +282,18 @@ write_client_options() {
         '}' >"${client_options_file}"
 }
 
+# Start an add-on container with its options, SSL directory, and token.
+# Globals:
+#   addon_image
+#   container_engine
+#   network_name
+#   platform
+# Arguments:
+#   $1: Container name.
+#   $2: Options file path on the host.
+#   $3: SSL directory path on the host.
+#   $4: Supervisor token.
+#   $5 and later: Additional container-engine arguments.
 start_addon() {
     local name="$1"
     local options="$2"
@@ -204,6 +309,14 @@ start_addon() {
         "$@" "${addon_image}" >/dev/null
 }
 
+# Start the server-profile add-on container.
+# Globals:
+#   options_file
+#   server_supervisor_token
+#   ssl_dir
+# Arguments:
+#   $1: Container name.
+#   $2 and later: Additional container-engine arguments.
 start_server_addon() {
     local name="$1"
     shift
@@ -212,11 +325,33 @@ start_server_addon() {
         "${server_supervisor_token}" "$@"
 }
 
+# Start the client-profile add-on container.
+# Globals:
+#   client_name
+#   client_options_file
+#   client_ssl_dir
+#   client_supervisor_token
+# Arguments:
+#   None
 start_client_addon() {
     start_addon "${client_name}" "${client_options_file}" "${client_ssl_dir}" \
         "${client_supervisor_token}"
 }
 
+# Start the mock Supervisor and wait for its health endpoint.
+# Globals:
+#   client_options_file
+#   client_supervisor_token
+#   container_engine
+#   options_file
+#   platform
+#   root_dir
+#   server_supervisor_token
+#   supervisor_image
+#   network_name
+#   supervisor_name
+# Returns:
+#   0 when the mock becomes healthy; nonzero on startup failure or timeout.
 start_supervisor_mock() {
     "${container_engine}" run --detach --name "${supervisor_name}" --network "${network_name}" \
         --network-alias supervisor --platform "${platform}" \
@@ -234,6 +369,32 @@ start_supervisor_mock() {
             "from urllib.request import urlopen; urlopen('http://127.0.0.1/health')"
 }
 
+# Create the temporary test environment and issue server and client tokens.
+# Globals:
+#   addon_image
+#   ca_image
+#   ca_fingerprint
+#   ca_name
+#   ca_volume
+#   client_options_file (set)
+#   client_san
+#   client_ssl_dir (set)
+#   client_server_subject
+#   client_subject
+#   client_server_token (set)
+#   client_token (set)
+#   container_engine
+#   deprecation_notices_file (set)
+#   network_name
+#   options_file (set)
+#   platform
+#   root_dir
+#   ssl_dir (set)
+#   subject
+#   tmp_dir (set)
+#   token (set)
+# Arguments:
+#   None
 initialize_harness() {
     validate_harness_configuration
 

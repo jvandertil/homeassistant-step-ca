@@ -1,5 +1,5 @@
 {
-  "name": "Example devcontainer for apps repositories",
+  "name": "ha-step-ca devcontainer",
   "image": "ghcr.io/home-assistant/devcontainer:6-apps",
   "overrideCommand": false,
   "remoteUser": "vscode",

@@ -32,7 +32,7 @@ options:
   restart_addons:
     - core_mosquitto
   log_level: info
-  key_type: RSA
+  key_type: EC
   mqtt:
     enabled: false
     instance_id: ""
@@ -54,7 +54,7 @@ options:
     cafile: client-ca.pem
     keyfile: client-privkey.pem
     certfile: client-fullchain.pem
-    key_type: RSA
+    key_type: EC
     renewal_method: renew
     renewal_threshold: 66%
     restart_ha: false

@@ -87,6 +87,10 @@ configuration:
     description: The amount of logging the add-on should do.
   key_type:
     name: Key type used for the certificate
+    description: >-
+      EC is the recommended modern default (ECDSA P-256). OKP uses Ed25519 and
+      is a modern alternative. RSA is a legacy option with the broadest
+      compatibility for older clients.
   client_certificate:
     name: Optional client certificate
     description: >-
@@ -115,6 +119,10 @@ configuration:
         name: Client certificate filename
       key_type:
         name: Client key type
+        description: >-
+          EC is the recommended modern default (ECDSA P-256). OKP uses Ed25519
+          and is a modern alternative. RSA is a legacy option with the broadest
+          compatibility for older clients.
       renewal_method:
         name: Client renewal method
       renewal_threshold:

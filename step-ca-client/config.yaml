@@ -27,7 +27,7 @@ options:
   renewal_method: renew
   renewal_threshold: 66%
   retry_backoff_seconds: 60
-  renewal_check_interval_seconds: 3600
+  renewal_check_interval_seconds: 900
   restart_ha: true
   restart_addons:
     - core_mosquitto

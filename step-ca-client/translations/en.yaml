@@ -47,7 +47,7 @@ configuration:
       Seconds to wait before retrying a failed due renewal. The default is 60 seconds.
   renewal_check_interval_seconds:
     name: Renewal check interval
-    description: Seconds between healthy certificate checks. The default is 3600.
+    description: Seconds between healthy certificate checks. The default is 15 minutes (900).
   mqtt:
     name: MQTT certificate telemetry
     description: Optional discovery and status publishing to your MQTT broker.

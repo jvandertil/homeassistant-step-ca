@@ -205,7 +205,7 @@ frequent retry attempts are acceptable.
 
 ### Option: `renewal_check_interval_seconds`
 
-Seconds between healthy checks (1–86400, default 3600). Each profile is
+Seconds between healthy checks (1–86400, default 900). Each profile is
 checked on startup with `step certificate needs-renewal` using
 `renewal_threshold`. Failed due renewals are retried after
 `retry_backoff_seconds`.

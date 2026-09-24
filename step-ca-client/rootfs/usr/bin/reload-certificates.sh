@@ -30,7 +30,7 @@ while ! mkdir "${lock_dir}" 2>/dev/null; do
 done
 unlock() { rmdir "${lock_dir}"; }
 trap unlock EXIT
-bashio::log.notice "${PROFILE} certificate updated; services restart in 5 minutes"
+bashio::log.notice "${PROFILE} certificate is installed; configured services restart in 5 minutes"
 sleep 300
 
 if [[ -n "${ADDONS}" ]]; then

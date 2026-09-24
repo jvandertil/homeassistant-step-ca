@@ -32,11 +32,12 @@ rm -f -- "${PENDING_CERT}" "${PENDING_KEY}"
 # Do not enable shell tracing here: it would disclose the one-time token in
 # Home Assistant's add-on logs.
 STEPPATH="${STEPPATH}" step ca certificate -f "--kty=${KEYTYPE}" "--token=${TOKEN}" \
-    "${MAINSUBJECT}" "${PENDING_CERT}" "${PENDING_KEY}"
+    "${MAINSUBJECT}" "${PENDING_CERT}" "${PENDING_KEY}" >/dev/null
 chmod 0600 "${PENDING_KEY}"
 certificate_pair_acceptable "${PENDING_CERT}" "${PENDING_KEY}" "${STEPPATH}"
 copy_certificate_pair "${PENDING_CERT}" "${PENDING_KEY}" "${CERTFILE}" "${KEYFILE}"
 certificate_pair_acceptable "${CERTFILE}" "${KEYFILE}" "${STEPPATH}"
+bashio::log.info "Installed new ${PROFILE} certificate at ${CERTFILE}"
 /usr/bin/reload-certificates.sh "${PROFILE}"
 save_recovery_pair "${PROFILE}" "${CERTFILE}" "${KEYFILE}"
 rm -f -- "${PENDING_CERT}" "${PENDING_KEY}"

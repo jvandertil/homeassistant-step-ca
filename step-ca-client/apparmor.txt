@@ -3,8 +3,19 @@
 profile step-ca-client flags=(attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
 
-  # Capabilities
-  file,
+  # Runtime files are read-only; writable state is listed below.
+  /init r,
+  /bin/** r,
+  /command/** r,
+  /etc/** r,
+  /lib/** r,
+  /package/** r,
+  /sbin/** r,
+  /usr/** r,
+  /var/** r,
+
+  network inet stream,
+  network inet6 stream,
   signal (send) set=(kill,term,int,hup,cont),
 
   # S6-Overlay
@@ -14,9 +25,10 @@ profile step-ca-client flags=(attach_disconnected,mediate_deleted) {
   /run/{s6,s6-rc*,service}/** ix,
   /package/** ix,
   /command/** ix,
-  /etc/services.d/** rwix,
-  /etc/cont-init.d/** rwix,
-  /etc/cont-finish.d/** rwix,
+  /etc/s6-overlay/** ix,
+  /etc/services.d/** ix,
+  /etc/cont-init.d/** ix,
+  /etc/cont-finish.d/** ix,
   /run/{,**} rwk,
   /dev/tty rw,
 
@@ -24,8 +36,15 @@ profile step-ca-client flags=(attach_disconnected,mediate_deleted) {
   /usr/lib/bashio/** ix,
   /tmp/** rwk,
 
-  # Access to options.json and other files within your addon
+  # Configuration, MQTT topic state, and renewal timestamps.
   /data/** rw,
+
+  # Configured certificate filenames are validated as /ssl basenames. The
+  # workers also stage and preserve pairs in these fixed recovery directories.
+  /ssl/ r,
+  /ssl/* rw,
+  /ssl/.step-ca-{server,client}-recovery/ rw,
+  /ssl/.step-ca-{server,client}-recovery/** rw,
 
   # Start new profile for service
   /usr/bin/step cx -> step,
@@ -36,26 +55,25 @@ profile step-ca-client flags=(attach_disconnected,mediate_deleted) {
     # Receive signals from S6-Overlay
     signal (receive) peer=*_step-ca-client,
 
-    # Access to options.json and other files within your addon
-    /data/** rw,
-
-    # step data directory
-    /root/.step/ rw,
-    /root/.step/** rw,
+    # Each certificate profile supplies its own STEPPATH.
     /root/.step-server/ rw,
     /root/.step-server/** rw,
     /root/.step-client/ rw,
     /root/.step-client/** rw,
 
-    # Access to mapped volumes specified in config.json
-    /ssl/** rw,
+    # CA roots and certificate material have configured /ssl basenames;
+    # issuance output is staged in a fixed recovery directory.
+    /ssl/ r,
+    /ssl/* rw,
+    /ssl/.step-ca-{server,client}-recovery/ rw,
+    /ssl/.step-ca-{server,client}-recovery/** rw,
 
-    # Access required for service functionality
+    network inet stream,
+    network inet6 stream,
+
+    # step-cli is called directly by the certificate workers.
     /usr/bin/step mr,
-    /bin/bash rix,
-    /bin/echo ix,
     /etc/passwd r,
-    /dev/tty rw,
 
     # Allow read cpuset
     /proc/*/cpuset r,
@@ -65,9 +83,5 @@ profile step-ca-client flags=(attach_disconnected,mediate_deleted) {
     /etc/resolv.conf r,
     /etc/nsswitch.conf r,
     /etc/hosts r,
-
-    # Access to the helper scripts
-    /usr/bin/reload-certificates.sh ux,
-    /usr/bin/renewal-complete.sh ux,
   }
 }

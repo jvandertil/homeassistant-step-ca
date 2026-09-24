@@ -21,7 +21,8 @@ PENDING_KEY="${RECOVERY_DIR}/pending-key.pem"
 STATE_DIR=/run/step-ca-telemetry
 STATE_FILE="${STATE_DIR}/${PROFILE}.state"
 LAST_SUCCESS="/data/step-ca-${PROFILE}-last-renewal"
-mkdir -p "${STATE_DIR}"
+
+# Validate profile settings.
 case "${METHOD}" in
     renew|rekey) ;;
     *) bashio::log.fatal "Invalid ${PROFILE} renewal_method"; exit 1 ;;
@@ -53,12 +54,26 @@ backoff="$(bashio::config 'retry_backoff_seconds')"
 if [[ ! "${backoff}" =~ ^[1-9][0-9]{0,3}$ ]] || ((10#${backoff} > 3600)); then
     backoff=60
 fi
+
+# Create the state directory if it does not exist.
+mkdir -p "${STATE_DIR}"
+
+# Write the current renewal status to the profile's state file atomically.
+# Globals:
+#   STATE_FILE
+#   due
+#   failure
+# Arguments:
+#   None
+# Returns:
+#   0 when the state file is written; nonzero if writing or renaming fails.
 write_state() {
     local temp
     temp="$(mktemp "${STATE_FILE}.tmp.XXXXXX")"
     printf '%s\n%s\n' "${due}" "${failure}" >"${temp}"
     mv -f -- "${temp}" "${STATE_FILE}"
 }
+
 due=unknown
 failure=off
 write_state
@@ -81,6 +96,7 @@ while true; do
             continue
             ;;
     esac
+
     write_state
     if [[ "${due}" == off ]]; then
         sleep "${interval}"
@@ -92,20 +108,22 @@ while true; do
         cp -- "${KEYFILE}" "${PENDING_KEY}"
         chmod 0600 "${PENDING_KEY}"
         STEPPATH="${STEPPATH}" step ca renew -f "--out=${PENDING_CERT}" \
-            "${CERTFILE}" "${KEYFILE}" || result=$?
+            "${CERTFILE}" "${KEYFILE}" >/dev/null || result=$?
     else
         STEPPATH="${STEPPATH}" step ca rekey -f "--kty=${KEY_TYPE}" \
             "--out-cert=${PENDING_CERT}" "--out-key=${PENDING_KEY}" \
-            "${CERTFILE}" "${KEYFILE}" || result=$?
+            "${CERTFILE}" "${KEYFILE}" >/dev/null || result=$?
     fi
     if ((result == 0)) && certificate_pair_acceptable "${PENDING_CERT}" "${PENDING_KEY}" "${STEPPATH}"; then
         if ! copy_certificate_pair "${PENDING_CERT}" "${PENDING_KEY}" "${CERTFILE}" "${KEYFILE}" ||
-            ! certificate_pair_acceptable "${CERTFILE}" "${KEYFILE}" "${STEPPATH}"; then
+            ! certificate_pair_acceptable "${CERTFILE}" "${KEYFILE}" "${STEPPATH}" ||
+            [[ "$(step certificate fingerprint "${CERTFILE}")" != "$(step certificate fingerprint "${PENDING_CERT}")" ]]; then
             failure=on
             write_state
             bashio::log.error "${PROFILE} certificate installation failed; restarting for startup recovery"
             exit 1
         fi
+        bashio::log.info "Installed renewed ${PROFILE} certificate at ${CERTFILE}"
         date -u +'%Y-%m-%dT%H:%M:%SZ' >"${LAST_SUCCESS}"
         failure=off
         due=off

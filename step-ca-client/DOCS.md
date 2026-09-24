@@ -103,12 +103,14 @@ or `/ssl/.step-ca-client-recovery`. These hidden directories are mode `0700`;
 their `key.pem` and temporary `pending-key.pem` files are mode `0600` and
 contain copies of the private keys.
 Protect `/ssl` backups accordingly. The add-on stages renewed material and
-verifies the certificate and key before installing them.
+verifies the certificate and key before installing them. Installation happens
+before any configured consumer restart is requested.
 On startup it checks certificate and key fingerprints and the CA chain, then
-repairs an interrupted write from the recovery copy or completes a pending
-token issuance. A valid active renewal completed before its restart callback
-is kept and its consumers are restarted. If all available certificates are
-expired or invalid, issue a new one-time token manually and restart the add-on.
+installs a valid pending issuance even if the previous active pair is still
+valid. It also repairs an interrupted write from the recovery copy. A valid
+active renewal completed before its restart callback is kept and its consumers
+are restarted. If all available certificates are expired or invalid, issue a
+new one-time token manually and restart the add-on.
 
 ### Option: `ca_url`
 

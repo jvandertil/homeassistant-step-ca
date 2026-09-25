@@ -37,6 +37,8 @@ if ! certificate_pair_acceptable "${CERTFILE}" "${KEYFILE}" "${STEPPATH}"; then
     if ! certificate_pair_acceptable "${CERTFILE}" "${KEYFILE}" "${STEPPATH}"; then
         /usr/bin/create-with-token.sh "${PROFILE}"
     fi
+else
+    bashio::log.info "Certificate pair found. Starting renewal daemon for ${PROFILE} profile"
 fi
 
 exec /usr/bin/renewal-daemon.sh "${PROFILE}"

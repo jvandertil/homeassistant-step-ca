@@ -70,8 +70,6 @@ See [LICENSE.md](LICENSE.md).
 
 [addon-add-repo]: https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fjvandertil%2Fhomeassistant-step-ca
 [addon-add-repo-badge]: https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg
-[addon-example]: https://github.com/hassio-addons/addon-example
-[commits]: https://github.com/jvandertil/homeassistant-step-ca/commits/main
 [contributors]: https://github.com/jvandertil/homeassistant-step-ca/graphs/contributors
 [docs]: https://github.com/jvandertil/homeassistant-step-ca/blob/main/step-ca-client/DOCS.md
 [github-actions-shield]: https://github.com/jvandertil/homeassistant-step-ca/workflows/CI/badge.svg

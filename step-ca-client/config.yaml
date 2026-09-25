@@ -1,6 +1,6 @@
 ---
 name: step-ca-client
-version: 0.2.0-beta.1
+version: 0.3.0-beta.1
 slug: step-ca-client
 description: SSL/TLS certificates from your own PKI
 url: https://github.com/jvandertil/homeassistant-step-ca

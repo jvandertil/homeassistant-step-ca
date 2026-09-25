@@ -1,8 +1,7 @@
 # Home Assistant Add-on: step-ca-client
 
-[![License][license-shield]](LICENSE.md)
-
 [![Github Actions][github-actions-shield]][github-actions]
+[![License][license-shield]](LICENSE.md)
 
 ## About
 

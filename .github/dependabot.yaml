@@ -6,3 +6,18 @@ updates:
     schedule:
       interval: daily
       time: "06:00"
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    registries:
+      - ghcr-registry
+
+registries:
+  ghcr-registry:
+    type: "docker-registry"
+    url: "https://ghcr.io"
+    # Use GitHub's built-in token to authenticate automatically
+    username: "${{github.actor}}"
+    password: "${{secrets.GITHUB_TOKEN}}"

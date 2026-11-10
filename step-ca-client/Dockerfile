@@ -1,6 +1,6 @@
 ARG STEP_CLI_VERSION=0.30.6-r1
 # hadolint ignore=DL3006
-FROM ghcr.io/hassio-addons/base:stable
+FROM ghcr.io/hassio-addons/base:21.0.11
 
 ARG STEP_CLI_VERSION
 
